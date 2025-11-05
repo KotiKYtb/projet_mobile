@@ -50,24 +50,7 @@ class _LoginPageState extends State<LoginPage> {
       setState(() {
         isOnline = online;
       });
-      
-      // Afficher un message de changement de connectivité
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              Icon(
-                online ? Icons.wifi : Icons.wifi_off,
-                color: Colors.white,
-              ),
-              const SizedBox(width: 8),
-              Text(online ? 'Connexion rétablie' : 'Mode hors ligne'),
-            ],
-          ),
-          backgroundColor: online ? Colors.green : Colors.orange,
-          duration: const Duration(seconds: 2),
-        ),
-      );
+      // Pas de notification pour les changements de connectivité
     }
   }
 
@@ -241,7 +224,7 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       resizeToAvoidBottomInset: false,
-      backgroundColor: AppColors.primaryBackground,
+      backgroundColor: AppColors.getPrimaryBackground(context),
       body: SafeArea(
         child: Container(
           // Adjusts padding based on screen size.
@@ -344,49 +327,108 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 
                 // Champ Email avec style du template
-                TextFormField(
-                  controller: emailCtrl,
-                  keyboardType: TextInputType.emailAddress,
-                  validator: (v) => (v == null || v.isEmpty) ? 'Requis' : null,
-                  style: const TextStyle(color: AppColors.textPrimary),
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: AppColors.menuBackground,
-                    hintText: 'Enter your email',
-                    hintStyle: const TextStyle(color: AppColors.textDisabled),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(4),
-                      borderSide: BorderSide.none,
+                Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(4),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primaryButton.withOpacity(0.15),
+                        blurRadius: 8,
+                        spreadRadius: 0,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: TextFormField(
+                    controller: emailCtrl,
+                    keyboardType: TextInputType.emailAddress,
+                    validator: (v) => (v == null || v.isEmpty) ? 'Requis' : null,
+                    style: TextStyle(color: AppColors.getTextPrimary(context)),
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: AppColors.getMenuBackground(context),
+                      hintText: 'Enter your email',
+                      hintStyle: TextStyle(color: AppColors.getTextDisabled(context)),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(4),
+                        borderSide: BorderSide(
+                          color: AppColors.primaryButton.withOpacity(0.2),
+                          width: 1,
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(4),
+                        borderSide: BorderSide(
+                          color: AppColors.primaryButton.withOpacity(0.15),
+                          width: 1,
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(4),
+                        borderSide: BorderSide(
+                          color: AppColors.primaryButton.withOpacity(0.4),
+                          width: 1.5,
+                        ),
+                      ),
+                      contentPadding: const EdgeInsets.all(16),
                     ),
-                    contentPadding: const EdgeInsets.all(16),
                   ),
                 ),
                 const SizedBox(height: 24),
                 
                 // Champ Password avec style du template
-                TextFormField(
-                  controller: passCtrl,
-                  obscureText: !_isPasswordVisible,
-                  enabled: isOnline,
-                  validator: isOnline ? (v) => (v == null || v.isEmpty) ? 'Requis' : null : null,
-                  style: const TextStyle(color: AppColors.textPrimary),
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: isOnline ? AppColors.menuBackground : AppColors.menuBackground.withOpacity(0.5),
-                    hintText: isOnline ? 'Enter your password' : 'Pas nécessaire en mode offline',
-                    hintStyle: const TextStyle(color: AppColors.textDisabled),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(4),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: const EdgeInsets.all(16),
+                Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(4),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primaryButton.withOpacity(0.15),
+                        blurRadius: 8,
+                        spreadRadius: 0,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: TextFormField(
+                    controller: passCtrl,
+                    obscureText: !_isPasswordVisible,
+                    enabled: isOnline,
+                    validator: isOnline ? (v) => (v == null || v.isEmpty) ? 'Requis' : null : null,
+                    style: TextStyle(color: AppColors.getTextPrimary(context)),
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: isOnline ? AppColors.getMenuBackground(context) : AppColors.getMenuBackground(context).withOpacity(0.5),
+                      hintText: isOnline ? 'Enter your password' : 'Pas nécessaire en mode offline',
+                      hintStyle: TextStyle(color: AppColors.getTextDisabled(context)),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(4),
+                        borderSide: BorderSide(
+                          color: AppColors.primaryButton.withOpacity(0.2),
+                          width: 1,
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(4),
+                        borderSide: BorderSide(
+                          color: AppColors.primaryButton.withOpacity(0.15),
+                          width: 1,
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(4),
+                        borderSide: BorderSide(
+                          color: AppColors.primaryButton.withOpacity(0.4),
+                          width: 1.5,
+                        ),
+                      ),
+                      contentPadding: const EdgeInsets.all(16),
                     suffixIcon: isOnline
                         ? IconButton(
                             icon: Icon(
                               _isPasswordVisible
                                   ? Icons.visibility
                                   : Icons.visibility_off,
-                              color: AppColors.textDisabled,
+                              color: AppColors.getTextDisabled(context),
                             ),
                             onPressed: () {
                               setState(() {
@@ -395,6 +437,7 @@ class _LoginPageState extends State<LoginPage> {
                             },
                           )
                         : null,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -427,25 +470,39 @@ class _LoginPageState extends State<LoginPage> {
                     height: 50,
                     alignment: Alignment.center,
                     padding: const EdgeInsets.symmetric(vertical: 12),
-                    decoration: ShapeDecoration(
-                      shape: const RoundedRectangleBorder(
-                        borderRadius: BorderRadius.all(Radius.circular(4)),
-                      ),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(4),
                       color: (loading || (!isOnline && lastUser == null))
-                          ? AppColors.menuBackground
+                          ? AppColors.getMenuBackground(context)
                           : AppColors.primaryButton,
+                      boxShadow: (loading || (!isOnline && lastUser == null))
+                          ? []
+                          : [
+                              BoxShadow(
+                                color: AppColors.primaryButton.withOpacity(0.4),
+                                blurRadius: 12,
+                                spreadRadius: 0,
+                                offset: const Offset(0, 4),
+                              ),
+                              BoxShadow(
+                                color: AppColors.secondaryText.withOpacity(0.3),
+                                blurRadius: 8,
+                                spreadRadius: 0,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
                     ),
                     child: !loading
-                        ? const Text(
+                        ? Text(
                             'Log in',
                             style: TextStyle(
-                              color: AppColors.textPrimary,
+                              color: AppColors.getTextPrimary(context),
                               fontWeight: FontWeight.bold,
                               fontSize: 16,
                             ),
                           )
-                        : const CircularProgressIndicator(
-                            color: AppColors.textPrimary,
+                        : CircularProgressIndicator(
+                            color: AppColors.getTextPrimary(context),
                           ),
                   ),
                 ),
@@ -478,7 +535,7 @@ class _LoginPageState extends State<LoginPage> {
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             color: (!isOnline && lastUser == null)
-                                ? AppColors.iconDisabled
+                                ? AppColors.getIconDisabled(context)
                                 : AppColors.primaryButton,
                           ),
                         ),

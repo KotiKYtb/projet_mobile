@@ -8,7 +8,7 @@ class MapContent extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        color: AppColors.primaryBackground,
+        color: AppColors.getPrimaryBackground(context),
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -25,7 +25,7 @@ class MapContent extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
+                  color: AppColors.getTextPrimary(context),
                 ),
               ),
               const SizedBox(height: 16),
@@ -45,8 +45,26 @@ class MapContent extends StatelessWidget {
                 padding: const EdgeInsets.all(16),
                 margin: const EdgeInsets.symmetric(horizontal: 32),
                 decoration: BoxDecoration(
-                  color: AppColors.cardBackground,
+                  color: AppColors.getCardBackground(context),
                   borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppColors.primaryButton.withOpacity(0.2),
+                    width: 1,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.primaryButton.withOpacity(0.2),
+                      blurRadius: 12,
+                      spreadRadius: 0,
+                      offset: const Offset(0, 3),
+                    ),
+                    BoxShadow(
+                      color: AppColors.secondaryText.withOpacity(0.15),
+                      blurRadius: 8,
+                      spreadRadius: 0,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
                 child: Column(
                   children: [
@@ -55,7 +73,7 @@ class MapContent extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
+                        color: AppColors.getTextPrimary(context),
                       ),
                     ),
                     const SizedBox(height: 8),

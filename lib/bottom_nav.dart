@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'utils/app_colors.dart';
+import '../utils/app_colors.dart';
 
 class BottomNav extends StatelessWidget {
   final int currentIndex;
@@ -23,23 +23,53 @@ class BottomNav extends StatelessWidget {
           // Fond avec trou transparent
           CustomPaint(
             size: Size(size.width, 80),
-            painter: BNBCustomPainter(),
+            painter: BNBCustomPainter(
+              menuBackgroundColor: AppColors.getMenuBackground(context),
+            ),
           ),
 
           // Bouton central flottant
           Center(
             heightFactor: 0.6,
-            child: FloatingActionButton(
-              onPressed: () => onTap(2),
-              backgroundColor: currentIndex == 2
-                  ? AppColors.primaryButton
-                  : AppColors.menuBackground,
-              shape: const CircleBorder(),
-              child: const Icon(
-                Icons.home,
-                color: AppColors.textPrimary,
+            child: Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: currentIndex == 2
+                    ? [
+                        BoxShadow(
+                          color: AppColors.primaryButton.withOpacity(0.5),
+                          blurRadius: 15,
+                          spreadRadius: 3,
+                          offset: const Offset(0, 4),
+                        ),
+                        BoxShadow(
+                          color: AppColors.secondaryText.withOpacity(0.3),
+                          blurRadius: 10,
+                          spreadRadius: 2,
+                          offset: const Offset(0, 2),
+                        ),
+                      ]
+                    : [
+                        BoxShadow(
+                          color: AppColors.getMenuBackground(context).withOpacity(0.3),
+                          blurRadius: 8,
+                          spreadRadius: 0,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
               ),
-              elevation: currentIndex == 2 ? 6 : 2,
+              child: FloatingActionButton(
+                onPressed: () => onTap(2),
+                backgroundColor: currentIndex == 2
+                    ? AppColors.primaryButton
+                    : AppColors.getMenuBackground(context),
+                shape: const CircleBorder(),
+                child: Icon(
+                  Icons.home,
+                  color: AppColors.getTextPrimary(context),
+                ),
+                elevation: 0,
+              ),
             ),
           ),
 
@@ -54,7 +84,7 @@ class BottomNav extends StatelessWidget {
                     Icons.event,
                     color: currentIndex == 0
                         ? AppColors.primaryButton
-                        : AppColors.iconDisabled,
+                        : AppColors.getIconDisabled(context),
                   ),
                 ),
                 IconButton(
@@ -63,7 +93,7 @@ class BottomNav extends StatelessWidget {
                     Icons.map,
                     color: currentIndex == 1
                         ? AppColors.primaryButton
-                        : AppColors.iconDisabled,
+                        : AppColors.getIconDisabled(context),
                   ),
                 ),
                 // Espace pour le FAB
@@ -74,7 +104,7 @@ class BottomNav extends StatelessWidget {
                     Icons.info_outline,
                     color: currentIndex == 3
                         ? AppColors.primaryButton
-                        : AppColors.iconDisabled,
+                        : AppColors.getIconDisabled(context),
                   ),
                 ),
                 IconButton(
@@ -83,7 +113,7 @@ class BottomNav extends StatelessWidget {
                     Icons.person,
                     color: currentIndex == 4
                         ? AppColors.primaryButton
-                        : AppColors.iconDisabled,
+                        : AppColors.getIconDisabled(context),
                   ),
                 ),
               ],
@@ -96,11 +126,15 @@ class BottomNav extends StatelessWidget {
 }
 
 class BNBCustomPainter extends CustomPainter {
+  final Color menuBackgroundColor;
+
+  BNBCustomPainter({required this.menuBackgroundColor});
+
   @override
   void paint(Canvas canvas, Size size) {
     // Couleur principale de la barre
     final Paint paint = Paint()
-      ..color = AppColors.menuBackground
+      ..color = menuBackgroundColor
       ..style = PaintingStyle.fill;
 
     // Fond complet de la barre

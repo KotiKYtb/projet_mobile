@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../utils/app_colors.dart';
+import '../services/theme_service.dart';
 
 class ProfileSection {
   final String title;
@@ -36,24 +38,18 @@ class ProfileContent extends StatefulWidget {
 }
 
 class _ProfileContentState extends State<ProfileContent> {
-  late List<ProfileSection> _sections;
+  List<ProfileSection>? _sections;
 
-  @override
-  void initState() {
-    super.initState();
-    _initSections();
-  }
-
-  void _initSections() {
-    _sections = [
+  List<ProfileSection> _initSections(BuildContext context) {
+    return [
       ProfileSection(
         title: 'Préférences application',
         icon: Icons.settings_outlined,
         content: [
           SwitchListTile(
-            title: const Text(
+            title: Text(
               'Notifications push',
-              style: TextStyle(color: AppColors.textPrimary),
+              style: TextStyle(color: AppColors.getTextPrimary(context)),
             ),
             subtitle: const Text(
               'Recevoir des alertes push',
@@ -65,19 +61,23 @@ class _ProfileContentState extends State<ProfileContent> {
               // TODO: sauvegarder la préférence
             },
           ),
-          SwitchListTile(
-            title: const Text(
-              'Mode sombre',
-              style: TextStyle(color: AppColors.textPrimary),
-            ),
-            subtitle: const Text(
-              'Thème sombre de l\'application',
-              style: TextStyle(color: AppColors.secondaryText),
-            ),
-            value: false, // TODO: lier au thème
-            activeColor: AppColors.primaryButton,
-            onChanged: (bool value) {
-              // TODO: changer le thème
+          Consumer<ThemeService>(
+            builder: (context, themeService, _) {
+              return SwitchListTile(
+                title: Text(
+                  'Mode sombre',
+                  style: TextStyle(color: AppColors.getTextPrimary(context)),
+                ),
+                subtitle: Text(
+                  'Thème sombre de l\'application',
+                  style: TextStyle(color: AppColors.secondaryText),
+                ),
+                value: themeService.isDarkMode,
+                activeColor: AppColors.primaryButton,
+                onChanged: (bool value) {
+                  themeService.setThemeMode(value ? ThemeMode.dark : ThemeMode.light);
+                },
+              );
             },
           ),
         ],
@@ -91,20 +91,20 @@ class _ProfileContentState extends State<ProfileContent> {
               Icons.security_outlined,
               color: AppColors.primaryButton,
             ),
-            title: const Text(
+            title: Text(
               'Changer le mot de passe',
-              style: TextStyle(color: AppColors.textPrimary),
+              style: TextStyle(color: AppColors.getTextPrimary(context)),
             ),
-            trailing: const Icon(
+            trailing: Icon(
               Icons.chevron_right,
-              color: AppColors.iconDisabled,
+              color: AppColors.getIconDisabled(context),
             ),
             onTap: () {
               // TODO: navigation vers changement mdp
             },
           ),
           Divider(
-            color: AppColors.menuBackground,
+            color: AppColors.getMenuBackground(context),
           ),
           ListTile(
             leading: Icon(
@@ -136,7 +136,7 @@ class _ProfileContentState extends State<ProfileContent> {
   Widget build(BuildContext context) {
     if (widget.loading) {
       return Container(
-        color: AppColors.primaryBackground,
+        color: AppColors.getPrimaryBackground(context),
         child: const Center(
           child: CircularProgressIndicator(
             valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryButton),
@@ -145,8 +145,11 @@ class _ProfileContentState extends State<ProfileContent> {
       );
     }
 
+    // Initialiser les sections dans build() où le contexte est disponible
+    final sections = _initSections(context);
+
     return Container(
-      color: AppColors.primaryBackground,
+      color: AppColors.getPrimaryBackground(context),
       child: ListView(
         padding: const EdgeInsets.only(bottom: 100),
         children: [
@@ -157,7 +160,7 @@ class _ProfileContentState extends State<ProfileContent> {
               padding: const EdgeInsets.all(24.0),
               child: Column(
                 children: [
-                    // Avatar avec indicateur de statut
+                        // Avatar avec indicateur de statut
                     Stack(
                       children: [
                         Container(
@@ -168,6 +171,14 @@ class _ProfileContentState extends State<ProfileContent> {
                               color: AppColors.primaryButton,
                               width: 3,
                             ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.primaryButton.withOpacity(0.4),
+                                blurRadius: 12,
+                                spreadRadius: 2,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
                           ),
                           child: CircleAvatar(
                             radius: 50,
@@ -205,10 +216,10 @@ class _ProfileContentState extends State<ProfileContent> {
                     // Nom d'utilisateur
                     Text(
                       widget.userName,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
+                        color: AppColors.getTextPrimary(context),
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -221,6 +232,14 @@ class _ProfileContentState extends State<ProfileContent> {
                       decoration: BoxDecoration(
                         color: AppColors.primaryButton.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primaryButton.withOpacity(0.3),
+                            blurRadius: 8,
+                            spreadRadius: 0,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
                       child: Text(
                         widget.userRole,
@@ -235,21 +254,41 @@ class _ProfileContentState extends State<ProfileContent> {
               ),
             ),
           // Sections expansibles
-          ...List.generate(_sections.length, (index) {
-            final section = _sections[index];
+          ...List.generate(sections.length, (index) {
+            final section = sections[index];
             return Card(
               margin: const EdgeInsets.symmetric(
                 horizontal: 16,
                 vertical: 8,
               ),
               elevation: 0,
-              color: AppColors.cardBackground,
+              color: AppColors.getCardBackground(context),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
                 side: BorderSide(
-                  color: AppColors.menuBackground,
+                  color: AppColors.primaryButton.withOpacity(0.2),
+                  width: 1,
                 ),
               ),
+              shadowColor: AppColors.primaryButton.withOpacity(0.3),
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.primaryButton.withOpacity(0.15),
+                      blurRadius: 10,
+                      spreadRadius: 0,
+                      offset: const Offset(0, 2),
+                    ),
+                    BoxShadow(
+                      color: AppColors.secondaryText.withOpacity(0.1),
+                      blurRadius: 6,
+                      spreadRadius: 0,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
+                ),
               child: Theme(
                 data: Theme.of(context).copyWith(
                   dividerColor: Colors.transparent,
@@ -267,18 +306,19 @@ class _ProfileContentState extends State<ProfileContent> {
                   ),
                   title: Text(
                     section.title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.w600,
                       fontSize: 16,
-                      color: AppColors.textPrimary,
+                      color: AppColors.getTextPrimary(context),
                     ),
                   ),
                   children: [
-                    Divider(color: AppColors.menuBackground),
+                    Divider(color: AppColors.getMenuBackground(context)),
                     ...section.content,
                     const SizedBox(height: 8),
                   ],
                 ),
+              ),
               ),
             );
           }),

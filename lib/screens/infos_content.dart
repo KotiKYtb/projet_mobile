@@ -114,14 +114,14 @@ class _InfosContentState extends State<InfosContent> {
 	@override
 	Widget build(BuildContext context) {
 		return Scaffold(
-			backgroundColor: AppColors.primaryBackground,
+			backgroundColor: AppColors.getPrimaryBackground(context),
 			body: Column(
 				children: [
 					const SizedBox(height: 48),
 					Container(
 						width: double.infinity,
 						padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-						color: AppColors.primaryBackground,
+						color: AppColors.getPrimaryBackground(context),
 						child: Row(
 							mainAxisAlignment: MainAxisAlignment.spaceBetween,
 							children: [
@@ -161,14 +161,18 @@ class _InfosContentState extends State<InfosContent> {
 								final item = _items[index];
 								return Material(
 									color: item.read
-											? AppColors.cardBackground
+											? AppColors.getCardBackground(context)
 											: AppColors.primaryButton.withOpacity(0.2),
 									borderRadius: BorderRadius.circular(10),
-									child: InkWell(
-										borderRadius: BorderRadius.circular(10),
-										onTap: () => _toggleRead(item),
-										child: Padding(
-											padding: const EdgeInsets.all(12),
+									child: Container(
+										decoration: BoxDecoration(
+											borderRadius: BorderRadius.circular(10),
+										),
+										child: InkWell(
+											borderRadius: BorderRadius.circular(10),
+											onTap: () => _toggleRead(item),
+											child: Padding(
+												padding: const EdgeInsets.all(12),
 											child: Row(
 												crossAxisAlignment: CrossAxisAlignment.start,
 												children: [
@@ -181,7 +185,7 @@ class _InfosContentState extends State<InfosContent> {
 															shape: BoxShape.circle,
 															color: item.read ? Colors.transparent : AppColors.primaryButton,
 															border: Border.all(
-																color: item.read ? AppColors.iconDisabled : AppColors.primaryButton,
+																color: item.read ? AppColors.getIconDisabled(context) : AppColors.primaryButton,
 															),
 														),
 													),
@@ -196,9 +200,9 @@ class _InfosContentState extends State<InfosContent> {
 																		Expanded(
 																			child: Text(
 																				item.title,
-																				style: const TextStyle(
+																				style: TextStyle(
 																					fontWeight: FontWeight.bold,
-																					color: AppColors.textPrimary,
+																					color: AppColors.getTextPrimary(context),
 																				),
 																			),
 																		),
@@ -215,8 +219,8 @@ class _InfosContentState extends State<InfosContent> {
 																const SizedBox(height: 6),
 																Text(
 																	item.body,
-																	style: const TextStyle(
-																		color: AppColors.textPrimary,
+																	style: TextStyle(
+																		color: AppColors.getTextPrimary(context),
 																	),
 																),
 															],
@@ -224,6 +228,7 @@ class _InfosContentState extends State<InfosContent> {
 													),
 												],
 											),
+										),
 										),
 									),
 								);

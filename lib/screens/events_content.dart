@@ -104,29 +104,65 @@ class _EventsContentState extends State<EventsContent> {
 	@override
 	Widget build(BuildContext context) {
 		return Scaffold(
-			backgroundColor: AppColors.primaryBackground,
+			backgroundColor: AppColors.getPrimaryBackground(context),
 			body: Padding(
 				padding: const EdgeInsets.all(12.0),
 				child: Column(
 					children: [
 						const SizedBox(height: 48),
 						// Search field
-						TextField(
-							controller: _searchController,
-							style: const TextStyle(color: AppColors.textPrimary),
-							decoration: InputDecoration(
-								hintText: 'Rechercher un événement ou un lieu',
-								hintStyle: const TextStyle(color: AppColors.textDisabled),
-								prefixIcon: const Icon(Icons.search, color: AppColors.secondaryText),
-								filled: true,
-								fillColor: AppColors.cardBackground,
-								border: OutlineInputBorder(
-									borderRadius: BorderRadius.circular(12),
-									borderSide: BorderSide.none,
+						Container(
+							decoration: BoxDecoration(
+								borderRadius: BorderRadius.circular(12),
+								boxShadow: [
+									BoxShadow(
+										color: AppColors.primaryButton.withOpacity(0.2),
+										blurRadius: 12,
+										spreadRadius: 0,
+										offset: const Offset(0, 2),
+									),
+									BoxShadow(
+										color: AppColors.secondaryText.withOpacity(0.15),
+										blurRadius: 8,
+										spreadRadius: 0,
+										offset: const Offset(0, 1),
+									),
+								],
+							),
+							child: TextField(
+								controller: _searchController,
+								style: TextStyle(color: AppColors.getTextPrimary(context)),
+								decoration: InputDecoration(
+									hintText: 'Rechercher un événement ou un lieu',
+									hintStyle: TextStyle(color: AppColors.getTextDisabled(context)),
+									prefixIcon: const Icon(Icons.search, color: AppColors.secondaryText),
+									filled: true,
+									fillColor: AppColors.getCardBackground(context),
+									border: OutlineInputBorder(
+										borderRadius: BorderRadius.circular(12),
+										borderSide: BorderSide(
+											color: AppColors.primaryButton.withOpacity(0.3),
+											width: 1,
+										),
+									),
+									enabledBorder: OutlineInputBorder(
+										borderRadius: BorderRadius.circular(12),
+										borderSide: BorderSide(
+											color: AppColors.primaryButton.withOpacity(0.2),
+											width: 1,
+										),
+									),
+									focusedBorder: OutlineInputBorder(
+										borderRadius: BorderRadius.circular(12),
+										borderSide: BorderSide(
+											color: AppColors.primaryButton.withOpacity(0.5),
+											width: 1.5,
+										),
+									),
 								),
 							),
 						),
-						const SizedBox(height: 12),
+						const SizedBox(height: 24),
 
 						// Header + count
 						Row(
@@ -167,8 +203,8 @@ class _EventsContentState extends State<EventsContent> {
 																_searchController.text.isEmpty
 																		? 'Aucun événement à venir.'
 																		: 'Aucun résultat pour "${_searchController.text}"',
-																style: const TextStyle(
-																	color: AppColors.textPrimary,
+																style: TextStyle(
+																	color: AppColors.getTextPrimary(context),
 																),
 															),
 														),
@@ -193,7 +229,7 @@ class _EventsContentState extends State<EventsContent> {
 														child: Container(
 															padding: const EdgeInsets.all(12),
 															decoration: BoxDecoration(
-																color: AppColors.cardBackground,
+																color: AppColors.getCardBackground(context),
 																borderRadius: BorderRadius.circular(10),
 															),
 															child: Row(
@@ -234,10 +270,10 @@ class _EventsContentState extends State<EventsContent> {
 																		children: [
 																			Text(
 																				ev.title,
-																				style: const TextStyle(
+																				style: TextStyle(
 																					fontSize: 16,
 																					fontWeight: FontWeight.w600,
-																					color: AppColors.textPrimary,
+																					color: AppColors.getTextPrimary(context),
 																				),
 																			),
 																			const SizedBox(height: 6),
@@ -256,8 +292,8 @@ class _EventsContentState extends State<EventsContent> {
 																	children: [
 																		Text(
 																			_formatDate(ev.date),
-																			style: const TextStyle(
-																				color: AppColors.textPrimary,
+																			style: TextStyle(
+																				color: AppColors.getTextPrimary(context),
 																			),
 																		),
 																		const SizedBox(height: 8),

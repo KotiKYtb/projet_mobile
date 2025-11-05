@@ -25,7 +25,7 @@ class _HomeContentState extends State<HomeContent> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColors.primaryBackground,
+      color: AppColors.getPrimaryBackground(context),
       child: Column(
         children: [
           const SizedBox(height: 48),
@@ -34,8 +34,17 @@ class _HomeContentState extends State<HomeContent> {
             height: MediaQuery.of(context).size.height * 0.33,
             child: Card(
               margin: const EdgeInsets.all(16),
-              color: AppColors.cardBackground,
+              color: AppColors.getCardBackground(context),
               clipBehavior: Clip.antiAlias,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(
+                  color: AppColors.primaryButton.withOpacity(0.2),
+                  width: 1,
+                ),
+              ),
+              shadowColor: AppColors.primaryButton.withOpacity(0.3),
               child: Container(
                 width: double.infinity,
                 decoration: BoxDecoration(
@@ -43,10 +52,24 @@ class _HomeContentState extends State<HomeContent> {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      AppColors.menuBackground,
-                      AppColors.primaryBackground,
+                      AppColors.getMenuBackground(context),
+                      AppColors.getPrimaryBackground(context),
                     ],
                   ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.primaryButton.withOpacity(0.2),
+                      blurRadius: 15,
+                      spreadRadius: 0,
+                      offset: const Offset(0, 4),
+                    ),
+                    BoxShadow(
+                      color: AppColors.secondaryText.withOpacity(0.15),
+                      blurRadius: 10,
+                      spreadRadius: 0,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
                 child: Center(
                   child: Column(
@@ -63,7 +86,7 @@ class _HomeContentState extends State<HomeContent> {
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
+                          color: AppColors.getTextPrimary(context),
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -80,19 +103,37 @@ class _HomeContentState extends State<HomeContent> {
               ),
             ),
           ),
+          const SizedBox(height: 24),
           
           // Prochain événement
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 16),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppColors.cardBackground,
+              color: AppColors.getCardBackground(context),
               borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: AppColors.primaryButton.withOpacity(0.25),
+                width: 1,
+              ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
+                  color: AppColors.primaryButton.withOpacity(0.2),
+                  blurRadius: 12,
+                  spreadRadius: 0,
+                  offset: const Offset(0, 3),
+                ),
+                BoxShadow(
+                  color: AppColors.secondaryText.withOpacity(0.15),
                   blurRadius: 8,
+                  spreadRadius: 0,
                   offset: const Offset(0, 2),
+                ),
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 6,
+                  spreadRadius: 0,
+                  offset: const Offset(0, 1),
                 ),
               ],
             ),
@@ -113,7 +154,7 @@ class _HomeContentState extends State<HomeContent> {
                   'Festival des Arts',
                   style: TextStyle(
                     fontSize: 16,
-                    color: AppColors.textPrimary,
+                    color: AppColors.getTextPrimary(context),
                   ),
                 ),
                 Text(
@@ -126,6 +167,7 @@ class _HomeContentState extends State<HomeContent> {
               ],
             ),
           ),
+          const SizedBox(height: 24),
           
           // Liste des favoris
           Expanded(
@@ -152,7 +194,7 @@ class _HomeContentState extends State<HomeContent> {
                           margin: const EdgeInsets.only(bottom: 8),
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: AppColors.cardBackground,
+                            color: AppColors.getCardBackground(context),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Column(
@@ -162,7 +204,7 @@ class _HomeContentState extends State<HomeContent> {
                                 'Événement ${index + 1}', // TODO: Remplacer par le vrai titre
                                 style: TextStyle(
                                   fontSize: 16,
-                                  color: AppColors.textPrimary,
+                                  color: AppColors.getTextPrimary(context),
                                 ),
                               ),
                               const SizedBox(height: 4),

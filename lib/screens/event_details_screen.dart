@@ -44,7 +44,7 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.primaryBackground,
+      backgroundColor: AppColors.getPrimaryBackground(context),
       body: CustomScrollView(
         controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
@@ -54,7 +54,7 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
             expandedHeight: 200.0,
             floating: false,
             pinned: true,
-            backgroundColor: AppColors.menuBackground,
+            backgroundColor: AppColors.getMenuBackground(context),
             leading: Padding(
               padding: const EdgeInsets.all(8.0),
               child: InkWell(
@@ -75,6 +75,14 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                       ],
                     ),
                     borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primaryButton.withOpacity(0.4),
+                        blurRadius: 10,
+                        spreadRadius: 0,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
                   ),
                   child: const Icon(
                     Icons.arrow_back_ios_new,
@@ -98,8 +106,8 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      AppColors.menuBackground,
-                      AppColors.cardBackground,
+                      AppColors.getMenuBackground(context),
+                      AppColors.getCardBackground(context),
                     ],
                   ),
                 ),
@@ -122,23 +130,45 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                 children: [
                   // Date and time
                   Card(
-                    color: AppColors.cardBackground,
-                    child: ListTile(
-                      leading: Icon(
-                        Icons.calendar_today,
-                        color: AppColors.primaryButton,
+                    color: AppColors.getCardBackground(context),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(
+                        color: AppColors.primaryButton.withOpacity(0.2),
+                        width: 1,
                       ),
-                      title: Text(
-                        _formatDate(widget.event.date),
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
+                    ),
+                    shadowColor: AppColors.primaryButton.withOpacity(0.3),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primaryButton.withOpacity(0.15),
+                            blurRadius: 10,
+                            spreadRadius: 0,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: ListTile(
+                        leading: Icon(
+                          Icons.calendar_today,
+                          color: AppColors.primaryButton,
                         ),
-                      ),
-                      subtitle: Text(
-                        _formatTime(widget.event.date),
-                        style: TextStyle(
-                          color: AppColors.secondaryText,
+                        title: Text(
+                          _formatDate(widget.event.date),
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.getTextPrimary(context),
+                          ),
+                        ),
+                        subtitle: Text(
+                          _formatTime(widget.event.date),
+                          style: TextStyle(
+                            color: AppColors.secondaryText,
+                          ),
                         ),
                       ),
                     ),
@@ -147,34 +177,56 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                   
                   // Location
                   Card(
-                    color: AppColors.cardBackground,
-                    child: ListTile(
-                      leading: Icon(
-                        Icons.location_on,
-                        color: AppColors.primaryButton,
+                    color: AppColors.getCardBackground(context),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(
+                        color: AppColors.primaryButton.withOpacity(0.2),
+                        width: 1,
                       ),
-                      title: Text(
-                        widget.event.place,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
+                    ),
+                    shadowColor: AppColors.primaryButton.withOpacity(0.3),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primaryButton.withOpacity(0.15),
+                            blurRadius: 10,
+                            spreadRadius: 0,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: ListTile(
+                        leading: Icon(
+                          Icons.location_on,
+                          color: AppColors.primaryButton,
                         ),
-                      ),
-                      subtitle: Text(
-                        'Tap pour voir sur la carte',
-                        style: TextStyle(
-                          color: AppColors.secondaryText,
+                        title: Text(
+                          widget.event.place,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.getTextPrimary(context),
+                          ),
                         ),
+                        subtitle: Text(
+                          'Tap pour voir sur la carte',
+                          style: TextStyle(
+                            color: AppColors.secondaryText,
+                          ),
+                        ),
+                        onTap: () {
+                          setState(() {
+                            _isMapExpanded = !_isMapExpanded;
+                          });
+                          // Attendre un peu pour que l'animation se termine avant de scroller
+                          Future.delayed(const Duration(milliseconds: 350), () {
+                            _scrollToMap();
+                          });
+                        },
                       ),
-                      onTap: () {
-                        setState(() {
-                          _isMapExpanded = !_isMapExpanded;
-                        });
-                        // Attendre un peu pour que l'animation se termine avant de scroller
-                        Future.delayed(const Duration(milliseconds: 350), () {
-                          _scrollToMap();
-                        });
-                      },
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -207,9 +259,36 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                     duration: const Duration(milliseconds: 300),
                     height: _isMapExpanded ? 400 : 200,
                     child: Card(
-                      color: AppColors.cardBackground,
+                      color: AppColors.getCardBackground(context),
                       clipBehavior: Clip.antiAlias,
-                      child: Stack(
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: BorderSide(
+                          color: AppColors.primaryButton.withOpacity(0.25),
+                          width: 1,
+                        ),
+                      ),
+                      shadowColor: AppColors.primaryButton.withOpacity(0.3),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primaryButton.withOpacity(0.2),
+                              blurRadius: 15,
+                              spreadRadius: 0,
+                              offset: const Offset(0, 4),
+                            ),
+                            BoxShadow(
+                              color: AppColors.secondaryText.withOpacity(0.15),
+                              blurRadius: 10,
+                              spreadRadius: 0,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Stack(
                         children: [
                           // Map placeholder
                           Container(
@@ -220,8 +299,8 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                                 colors: [
-                                  AppColors.menuBackground,
-                                  AppColors.primaryBackground,
+                                  AppColors.getMenuBackground(context),
+                                  AppColors.getPrimaryBackground(context),
                                 ],
                               ),
                             ),
@@ -243,7 +322,7 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                                       style: TextStyle(
                                         fontSize: _isMapExpanded ? 18 : 16,
                                         fontWeight: FontWeight.bold,
-                                        color: AppColors.textPrimary,
+                                        color: AppColors.getTextPrimary(context),
                                       ),
                                       textAlign: TextAlign.center,
                                       maxLines: 2,
@@ -266,6 +345,14 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                                       decoration: BoxDecoration(
                                         color: AppColors.primaryButton.withOpacity(0.2),
                                         borderRadius: BorderRadius.circular(8),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: AppColors.primaryButton.withOpacity(0.3),
+                                            blurRadius: 8,
+                                            spreadRadius: 0,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
                                       ),
                                       child: Icon(
                                         Icons.location_on,
@@ -291,24 +378,38 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                           Positioned(
                             right: 8,
                             bottom: 8,
-                            child: FloatingActionButton.small(
-                              backgroundColor: AppColors.primaryButton,
-                              onPressed: () {
-                                setState(() {
-                                  _isMapExpanded = !_isMapExpanded;
-                                });
-                                // Attendre un peu pour que l'animation se termine avant de scroller
-                                Future.delayed(const Duration(milliseconds: 350), () {
-                                  _scrollToMap();
-                                });
-                              },
-                              child: Icon(
-                                _isMapExpanded ? Icons.fullscreen_exit : Icons.fullscreen,
-                                color: AppColors.textPrimary,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: AppColors.primaryButton.withOpacity(0.4),
+                                    blurRadius: 12,
+                                    spreadRadius: 2,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                              child: FloatingActionButton.small(
+                                backgroundColor: AppColors.primaryButton,
+                                onPressed: () {
+                                  setState(() {
+                                    _isMapExpanded = !_isMapExpanded;
+                                  });
+                                  // Attendre un peu pour que l'animation se termine avant de scroller
+                                  Future.delayed(const Duration(milliseconds: 350), () {
+                                    _scrollToMap();
+                                  });
+                                },
+                                child: Icon(
+                                  _isMapExpanded ? Icons.fullscreen_exit : Icons.fullscreen,
+                                  color: AppColors.getTextPrimary(context),
+                                ),
                               ),
                             ),
                           ),
                         ],
+                        ),
                       ),
                     ),
                   ),

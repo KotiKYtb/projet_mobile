@@ -49,36 +49,9 @@ class _MainPageState extends State<MainPage> {
       
       if (online) {
         _syncData();
-        // Afficher un message de reconnexion
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.wifi, color: Colors.white),
-                const SizedBox(width: 8),
-                const Text('Connexion rétablie - Synchronisation...'),
-              ],
-            ),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      } else {
-        // Afficher un message de déconnexion
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.wifi_off, color: Colors.white),
-                const SizedBox(width: 8),
-                const Text('Mode hors ligne - Données locales'),
-              ],
-            ),
-            backgroundColor: Colors.orange,
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        // Synchronisation silencieuse sans notification
       }
+      // Pas de notification pour les changements de connectivité
     }
   }
 
@@ -232,25 +205,7 @@ class _MainPageState extends State<MainPage> {
       // Vider le cache local
       await LocalDatabase.clearAllUsers();
       
-      // Afficher un message selon le mode
-      if (!isOnline) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Déconnexion effectuée. En mode offline, vous ne pourrez plus vous reconnecter ni créer de compte.'),
-            duration: Duration(seconds: 4),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Déconnexion effectuée avec succès.'),
-            duration: Duration(seconds: 2),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-      
+      // Déconnexion silencieuse sans notification
       if (!mounted) return;
       Navigator.pushReplacementNamed(context, '/login');
     } catch (e) {
@@ -294,7 +249,7 @@ class _MainPageState extends State<MainPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.primaryBackground,
+      backgroundColor: AppColors.getPrimaryBackground(context),
       extendBody: true,
       body: _buildContent(),
       bottomNavigationBar: BottomNav(
