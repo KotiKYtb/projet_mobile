@@ -5,7 +5,6 @@ import 'screens/splash_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/main_screen.dart';
-import 'screens/debug_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,6 +18,7 @@ class App extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'JWT Auth',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.blue),
       initialRoute: '/splash',
       routes: {
@@ -26,7 +26,6 @@ class App extends StatelessWidget {
         '/register': (_) => const RegisterPage(),
         '/login': (_) => const LoginPage(),
         '/main': (_) => const MainPage(),
-        '/debug': (_) => const DebugPage(),
       },
     );
   }

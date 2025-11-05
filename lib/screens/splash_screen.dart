@@ -3,6 +3,7 @@ import '../token_storage.dart';
 import '../services/sync_service.dart';
 import '../services/connectivity_service.dart';
 import '../api_client.dart';
+import '../utils/app_colors.dart';
 import 'dart:convert';
 
 class SplashScreen extends StatefulWidget {
@@ -118,16 +119,16 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey.shade300,
+      backgroundColor: AppColors.primaryBackground,
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Colors.grey.shade300,
-              Colors.grey.shade400,
-              Colors.grey.shade500,
+              AppColors.primaryBackground,
+              AppColors.menuBackground,
+              AppColors.cardBackground,
             ],
           ),
         ),
@@ -147,20 +148,14 @@ class _SplashScreenState extends State<SplashScreen> {
                       width: 120,
                       height: 120,
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: AppColors.cardBackground,
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.2),
+                            color: Colors.black.withOpacity(0.3),
                             blurRadius: 20,
                             spreadRadius: 5,
                             offset: const Offset(5, 5),
-                          ),
-                          BoxShadow(
-                            color: Colors.white.withOpacity(0.8),
-                            blurRadius: 20,
-                            spreadRadius: 5,
-                            offset: const Offset(-5, -5),
                           ),
                         ],
                       ),
@@ -168,7 +163,7 @@ class _SplashScreenState extends State<SplashScreen> {
                         child: Icon(
                           Icons.location_city,
                           size: 70,
-                          color: const Color.fromARGB(255, 130, 110, 100),
+                          color: AppColors.primaryButton,
                         ),
                       ),
                     ),
@@ -185,12 +180,12 @@ class _SplashScreenState extends State<SplashScreen> {
                 builder: (context, opacity, child) {
                   return Opacity(
                     opacity: opacity,
-                    child: const Text(
+                    child: Text(
                       'Angers',
                       style: TextStyle(
                         fontSize: 42,
                         fontWeight: FontWeight.bold,
-                        color: Colors.black87,
+                        color: AppColors.textPrimary,
                         letterSpacing: 2,
                       ),
                     ),
@@ -211,7 +206,7 @@ class _SplashScreenState extends State<SplashScreen> {
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w300,
-                        color: Colors.grey.shade700,
+                        color: AppColors.secondaryText,
                         letterSpacing: 3,
                       ),
                     ),
@@ -231,9 +226,9 @@ class _SplashScreenState extends State<SplashScreen> {
                     opacity: opacity,
                     child: Column(
                       children: [
-                        const CircularProgressIndicator(
+                        CircularProgressIndicator(
                           valueColor: AlwaysStoppedAnimation<Color>(
-                            Color.fromARGB(255, 130, 110, 100),
+                            AppColors.primaryButton,
                           ),
                           strokeWidth: 3,
                         ),
@@ -242,7 +237,7 @@ class _SplashScreenState extends State<SplashScreen> {
                           'Vérification de la session...',
                           style: TextStyle(
                             fontSize: 14,
-                            color: Colors.grey.shade700,
+                            color: AppColors.secondaryText,
                             letterSpacing: 1,
                           ),
                         ),

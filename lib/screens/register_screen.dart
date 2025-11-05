@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../api_client.dart';
 import '../services/connectivity_service.dart';
+import '../utils/app_colors.dart';
 
 const webScreenSize = 600;
 
@@ -162,7 +163,7 @@ class _RegisterPageState extends State<RegisterPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       resizeToAvoidBottomInset: false,
-      backgroundColor: Colors.grey.shade300,
+      backgroundColor: AppColors.primaryBackground,
       body: SafeArea(
         child: SingleChildScrollView(
           child: Container(
@@ -181,10 +182,10 @@ class _RegisterPageState extends State<RegisterPage> {
                   // Logo ou branding
                   SizedBox(
                     height: 100,
-                    child: Icon(
+                    child: const Icon(
                       Icons.person_add_outlined,
                       size: 70,
-                      color: Colors.grey.shade700,
+                      color: AppColors.secondaryText,
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -269,7 +270,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     controller: nameCtrl,
                     enabled: isOnline,
                     validator: (v) => (v == null || v.isEmpty) ? 'Requis' : null,
-                    style: const TextStyle(color: Colors.white),
+                    style: const TextStyle(color: AppColors.textPrimary),
                     decoration: InputDecoration(
                       filled: true,
                       fillColor: isOnline ? Colors.black : Colors.grey.shade800,
@@ -289,7 +290,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     controller: surnameCtrl,
                     enabled: isOnline,
                     validator: (v) => (v == null || v.isEmpty) ? 'Requis' : null,
-                    style: const TextStyle(color: Colors.white),
+                    style: const TextStyle(color: AppColors.textPrimary),
                     decoration: InputDecoration(
                       filled: true,
                       fillColor: isOnline ? Colors.black : Colors.grey.shade800,
@@ -310,7 +311,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     keyboardType: TextInputType.emailAddress,
                     enabled: isOnline,
                     validator: (v) => (v == null || v.isEmpty) ? 'Requis' : null,
-                    style: const TextStyle(color: Colors.white),
+                    style: const TextStyle(color: AppColors.textPrimary),
                     decoration: InputDecoration(
                       filled: true,
                       fillColor: isOnline ? Colors.black : Colors.grey.shade800,
@@ -331,7 +332,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     obscureText: !_isPasswordVisible,
                     enabled: isOnline,
                     validator: (v) => (v == null || v.length < 6) ? 'Min 6 chars' : null,
-                    style: const TextStyle(color: Colors.white),
+                    style: const TextStyle(color: AppColors.textPrimary),
                     decoration: InputDecoration(
                       filled: true,
                       fillColor: isOnline ? Colors.black : Colors.grey.shade800,
@@ -348,7 +349,7 @@ class _RegisterPageState extends State<RegisterPage> {
                                 _isPasswordVisible
                                     ? Icons.visibility
                                     : Icons.visibility_off,
-                                color: Colors.white60,
+                                color: AppColors.textDisabled,
                               ),
                               onPressed: () {
                                 setState(() {
@@ -371,12 +372,12 @@ class _RegisterPageState extends State<RegisterPage> {
                       if (v != passCtrl.text) return 'Les mots de passe ne correspondent pas';
                       return null;
                     },
-                    style: const TextStyle(color: Colors.white),
+                    style: const TextStyle(color: AppColors.textPrimary),
                     decoration: InputDecoration(
                       filled: true,
-                      fillColor: isOnline ? Colors.black : Colors.grey.shade800,
+                      fillColor: isOnline ? AppColors.menuBackground : AppColors.menuBackground.withOpacity(0.5),
                       hintText: 'Confirm your password',
-                      hintStyle: const TextStyle(color: Colors.white60),
+                      hintStyle: const TextStyle(color: AppColors.textDisabled),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(4),
                         borderSide: BorderSide.none,
@@ -388,7 +389,7 @@ class _RegisterPageState extends State<RegisterPage> {
                                 _isConfirmPasswordVisible
                                     ? Icons.visibility
                                     : Icons.visibility_off,
-                                color: Colors.white60,
+                                color: AppColors.textDisabled,
                               ),
                               onPressed: () {
                                 setState(() {
@@ -434,8 +435,8 @@ class _RegisterPageState extends State<RegisterPage> {
                           borderRadius: BorderRadius.all(Radius.circular(4)),
                         ),
                         color: (loading || !isOnline)
-                            ? Colors.grey
-                            : Colors.brown,
+                            ? AppColors.menuBackground
+                            : AppColors.primaryButton,
                       ),
                       child: !loading
                           ? !isOnline
@@ -443,12 +444,12 @@ class _RegisterPageState extends State<RegisterPage> {
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(Icons.block, color: Colors.white, size: 20),
+                                    Icon(Icons.block, color: AppColors.textPrimary, size: 20),
                                     SizedBox(width: 8),
                                     Text(
                                       'Inscription désactivée',
                                       style: TextStyle(
-                                        color: Colors.white,
+                                        color: AppColors.textPrimary,
                                         fontWeight: FontWeight.bold,
                                         fontSize: 16,
                                       ),
@@ -458,13 +459,13 @@ class _RegisterPageState extends State<RegisterPage> {
                               : const Text(
                                   'Sign up',
                                   style: TextStyle(
-                                    color: Colors.white,
+                                    color: AppColors.textPrimary,
                                     fontWeight: FontWeight.bold,
                                     fontSize: 16,
                                   ),
                                 )
                           : const CircularProgressIndicator(
-                              color: Colors.white,
+                              color: AppColors.textPrimary,
                             ),
                     ),
                   ),
@@ -478,7 +479,7 @@ class _RegisterPageState extends State<RegisterPage> {
                         padding: const EdgeInsets.symmetric(vertical: 8),
                         child: const Text(
                           'Already have an account?',
-                          style: TextStyle(color: Colors.grey),
+                          style: TextStyle(color: AppColors.secondaryText),
                         ),
                       ),
                       GestureDetector(
@@ -489,7 +490,7 @@ class _RegisterPageState extends State<RegisterPage> {
                             ' Login.',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
-                              color: Colors.black,
+                              color: AppColors.primaryButton,
                             ),
                           ),
                         ),

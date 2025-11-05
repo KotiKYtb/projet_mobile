@@ -6,6 +6,7 @@ import '../token_storage.dart';
 import '../services/connectivity_service.dart';
 import '../services/offline_auth.dart';
 import '../models/user_model.dart';
+import '../utils/app_colors.dart';
 
 const webScreenSize = 600;
 
@@ -240,7 +241,7 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       resizeToAvoidBottomInset: false,
-      backgroundColor: Colors.grey.shade300,
+      backgroundColor: AppColors.primaryBackground,
       body: SafeArea(
         child: Container(
           // Adjusts padding based on screen size.
@@ -261,10 +262,10 @@ class _LoginPageState extends State<LoginPage> {
                 // Logo ou branding (vous pouvez ajouter votre logo ici)
                 SizedBox(
                   height: 120,
-                  child: Icon(
+                  child: const Icon(
                     Icons.lock_outline,
                     size: 80,
-                    color: Colors.grey.shade700,
+                    color: AppColors.secondaryText,
                   ),
                 ),
                 const SizedBox(height: 32),
@@ -347,12 +348,12 @@ class _LoginPageState extends State<LoginPage> {
                   controller: emailCtrl,
                   keyboardType: TextInputType.emailAddress,
                   validator: (v) => (v == null || v.isEmpty) ? 'Requis' : null,
-                  style: const TextStyle(color: Colors.white),
+                  style: const TextStyle(color: AppColors.textPrimary),
                   decoration: InputDecoration(
                     filled: true,
-                    fillColor: Colors.black,
+                    fillColor: AppColors.menuBackground,
                     hintText: 'Enter your email',
-                    hintStyle: const TextStyle(color: Colors.white60),
+                    hintStyle: const TextStyle(color: AppColors.textDisabled),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(4),
                       borderSide: BorderSide.none,
@@ -368,12 +369,12 @@ class _LoginPageState extends State<LoginPage> {
                   obscureText: !_isPasswordVisible,
                   enabled: isOnline,
                   validator: isOnline ? (v) => (v == null || v.isEmpty) ? 'Requis' : null : null,
-                  style: const TextStyle(color: Colors.white),
+                  style: const TextStyle(color: AppColors.textPrimary),
                   decoration: InputDecoration(
                     filled: true,
-                    fillColor: isOnline ? Colors.black : Colors.grey.shade800,
+                    fillColor: isOnline ? AppColors.menuBackground : AppColors.menuBackground.withOpacity(0.5),
                     hintText: isOnline ? 'Enter your password' : 'Pas nécessaire en mode offline',
-                    hintStyle: const TextStyle(color: Colors.white60),
+                    hintStyle: const TextStyle(color: AppColors.textDisabled),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(4),
                       borderSide: BorderSide.none,
@@ -385,7 +386,7 @@ class _LoginPageState extends State<LoginPage> {
                               _isPasswordVisible
                                   ? Icons.visibility
                                   : Icons.visibility_off,
-                              color: Colors.white60,
+                              color: AppColors.textDisabled,
                             ),
                             onPressed: () {
                               setState(() {
@@ -431,20 +432,20 @@ class _LoginPageState extends State<LoginPage> {
                         borderRadius: BorderRadius.all(Radius.circular(4)),
                       ),
                       color: (loading || (!isOnline && lastUser == null))
-                          ? Colors.grey
-                          : const Color.fromARGB(255, 130, 110, 100),
+                          ? AppColors.menuBackground
+                          : AppColors.primaryButton,
                     ),
                     child: !loading
                         ? const Text(
                             'Log in',
                             style: TextStyle(
-                              color: Colors.white,
+                              color: AppColors.textPrimary,
                               fontWeight: FontWeight.bold,
                               fontSize: 16,
                             ),
                           )
                         : const CircularProgressIndicator(
-                            color: Colors.white,
+                            color: AppColors.textPrimary,
                           ),
                   ),
                 ),
@@ -463,7 +464,7 @@ class _LoginPageState extends State<LoginPage> {
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       child: const Text(
                         'Don\'t have an account?',
-                        style: TextStyle(color: Colors.grey),
+                        style: TextStyle(color: AppColors.secondaryText),
                       ),
                     ),
                     GestureDetector(
@@ -477,8 +478,8 @@ class _LoginPageState extends State<LoginPage> {
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             color: (!isOnline && lastUser == null)
-                                ? Colors.grey
-                                : Colors.black,
+                                ? AppColors.iconDisabled
+                                : AppColors.primaryButton,
                           ),
                         ),
                       ),

@@ -1,6 +1,21 @@
 import 'package:flutter/material.dart';
+import '../utils/app_colors.dart';
 
-class ProfileContent extends StatelessWidget {
+class ProfileSection {
+  final String title;
+  final IconData icon;
+  final List<Widget> content;
+  bool isExpanded;
+
+  ProfileSection({
+    required this.title,
+    required this.icon,
+    required this.content,
+    this.isExpanded = false,
+  });
+}
+
+class ProfileContent extends StatefulWidget {
   final String userName;
   final String userRole;
   final bool loading;
@@ -17,150 +32,259 @@ class ProfileContent extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: Colors.grey.shade300,
-      child: Center(
-        child: Container(
-          padding: const EdgeInsets.all(32),
-          margin: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 10,
-                offset: const Offset(5, 5),
-              ),
-              BoxShadow(
-                color: Colors.white.withOpacity(0.8),
-                blurRadius: 10,
-                offset: const Offset(-5, -5),
-              ),
-            ],
+  State<ProfileContent> createState() => _ProfileContentState();
+}
+
+class _ProfileContentState extends State<ProfileContent> {
+  late List<ProfileSection> _sections;
+
+  @override
+  void initState() {
+    super.initState();
+    _initSections();
+  }
+
+  void _initSections() {
+    _sections = [
+      ProfileSection(
+        title: 'Préférences application',
+        icon: Icons.settings_outlined,
+        content: [
+          SwitchListTile(
+            title: const Text(
+              'Notifications push',
+              style: TextStyle(color: AppColors.textPrimary),
+            ),
+            subtitle: const Text(
+              'Recevoir des alertes push',
+              style: TextStyle(color: AppColors.secondaryText),
+            ),
+            value: true, // TODO: lier à une vraie préférence
+            activeColor: AppColors.primaryButton,
+            onChanged: (bool value) {
+              // TODO: sauvegarder la préférence
+            },
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.person,
-                size: 64,
-                color: Colors.purple.shade700,
+          SwitchListTile(
+            title: const Text(
+              'Mode sombre',
+              style: TextStyle(color: AppColors.textPrimary),
+            ),
+            subtitle: const Text(
+              'Thème sombre de l\'application',
+              style: TextStyle(color: AppColors.secondaryText),
+            ),
+            value: false, // TODO: lier au thème
+            activeColor: AppColors.primaryButton,
+            onChanged: (bool value) {
+              // TODO: changer le thème
+            },
+          ),
+        ],
+      ),
+      ProfileSection(
+        title: 'Compte',
+        icon: Icons.admin_panel_settings_outlined,
+        content: [
+          ListTile(
+            leading: const Icon(
+              Icons.security_outlined,
+              color: AppColors.primaryButton,
+            ),
+            title: const Text(
+              'Changer le mot de passe',
+              style: TextStyle(color: AppColors.textPrimary),
+            ),
+            trailing: const Icon(
+              Icons.chevron_right,
+              color: AppColors.iconDisabled,
+            ),
+            onTap: () {
+              // TODO: navigation vers changement mdp
+            },
+          ),
+          Divider(
+            color: AppColors.menuBackground,
+          ),
+          ListTile(
+            leading: Icon(
+              Icons.logout,
+              color: widget.isOnline ? AppColors.primaryButton : Colors.orange,
+            ),
+            title: Text(
+              'Se déconnecter',
+              style: TextStyle(
+                color: widget.isOnline ? AppColors.primaryButton : Colors.orange,
+                fontWeight: FontWeight.bold,
               ),
-              const SizedBox(height: 16),
-              const Text(
-                'Profil Utilisateur',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 24),
-              if (loading)
-                const CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    Color.fromARGB(255, 130, 110, 100),
-                  ),
-                )
-              else ...[
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    children: [
-                      _buildProfileRow('Nom', userName),
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color.fromARGB(255, 130, 110, 100)
-                              .withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          'Rôle: $userRole',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Color.fromARGB(255, 130, 110, 100),
+            ),
+            subtitle: !widget.isOnline
+                ? const Text(
+                    'Mode hors ligne - Reconnexion impossible',
+                    style: TextStyle(color: Colors.orange),
+                  )
+                : null,
+            onTap: widget.onLogout,
+          ),
+        ],
+      ),
+    ];
+  }
+
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.loading) {
+      return Container(
+        color: AppColors.primaryBackground,
+        child: const Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryButton),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      color: AppColors.primaryBackground,
+      child: ListView(
+        padding: const EdgeInsets.only(bottom: 100),
+        children: [
+          const SizedBox(height: 48),
+          // En-tête du profil
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                children: [
+                    // Avatar avec indicateur de statut
+                    Stack(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: AppColors.primaryButton,
+                              width: 3,
+                            ),
+                          ),
+                          child: CircleAvatar(
+                            radius: 50,
+                            backgroundColor: AppColors.primaryButton.withOpacity(0.2),
+                            child: Icon(
+                              Icons.person,
+                              size: 50,
+                              color: AppColors.primaryButton,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-                InkWell(
-                  onTap: onLogout,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 12,
-                    ),
-                    decoration: ShapeDecoration(
-                      shape: const RoundedRectangleBorder(
-                        borderRadius: BorderRadius.all(Radius.circular(4)),
-                      ),
-                      color: !isOnline
-                          ? Colors.orange
-                          : const Color.fromARGB(255, 130, 110, 100),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (!isOnline) ...[
-                          const Icon(Icons.warning, color: Colors.white, size: 20),
-                          const SizedBox(width: 8),
-                        ],
-                        const Text(
-                          'Se déconnecter',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: widget.isOnline ? Colors.green : Colors.orange,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white,
+                                width: 2,
+                              ),
+                            ),
+                            child: Icon(
+                              widget.isOnline ? Icons.wifi : Icons.wifi_off,
+                              size: 14,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
                       ],
                     ),
-                  ),
+                    const SizedBox(height: 16),
+                    // Nom d'utilisateur
+                    Text(
+                      widget.userName,
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    // Badge de rôle
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryButton.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        widget.userRole,
+                        style: const TextStyle(
+                          color: AppColors.primaryButton,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ],
-          ),
-        ),
+              ),
+            ),
+          // Sections expansibles
+          ...List.generate(_sections.length, (index) {
+            final section = _sections[index];
+            return Card(
+              margin: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 8,
+              ),
+              elevation: 0,
+              color: AppColors.cardBackground,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(
+                  color: AppColors.menuBackground,
+                ),
+              ),
+              child: Theme(
+                data: Theme.of(context).copyWith(
+                  dividerColor: Colors.transparent,
+                ),
+                child: ExpansionTile(
+                  initiallyExpanded: section.isExpanded,
+                  onExpansionChanged: (expanded) {
+                    setState(() {
+                      section.isExpanded = expanded;
+                    });
+                  },
+                  leading: Icon(
+                    section.icon,
+                    color: AppColors.primaryButton,
+                  ),
+                  title: Text(
+                    section.title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 16,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  children: [
+                    Divider(color: AppColors.menuBackground),
+                    ...section.content,
+                    const SizedBox(height: 8),
+                  ],
+                ),
+              ),
+            );
+          }),
+          const SizedBox(height: 24),
+        ],
       ),
     );
   }
-
-  Widget _buildProfileRow(String label, String value) {
-    return Row(
-      children: [
-        Text(
-          '$label: ',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.grey.shade700,
-          ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: const TextStyle(
-              fontSize: 16,
-              color: Colors.black87,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 }
-

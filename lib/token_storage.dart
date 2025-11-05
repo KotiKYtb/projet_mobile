@@ -154,4 +154,19 @@ class TokenStorage {
     
     print('✅ Tous les tokens et données de session ont été supprimés');
   }
+
+  // Notifications cache
+  static const _cachedNotificationsKey = 'cached_notifications';
+
+  static Future<void> saveCachedNotifications(String jsonStr) async {
+    await _storage.write(key: _cachedNotificationsKey, value: jsonStr);
+  }
+
+  static Future<String?> readCachedNotifications() async {
+    return await _storage.read(key: _cachedNotificationsKey);
+  }
+
+  static Future<void> clearCachedNotifications() async {
+    await _storage.delete(key: _cachedNotificationsKey);
+  }
 }

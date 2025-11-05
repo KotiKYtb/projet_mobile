@@ -8,6 +8,7 @@ import 'package:unop/providers/user_provider.dart';
 import 'package:unop/resources/firestore_methods.dart';
 import 'package:unop/utils/colors.dart';
 import 'package:unop/utils/image_rotation.dart';
+import '../../utils/app_colors.dart';
 import 'package:unop/utils/utils.dart';
 import 'package:unop/widgets/text_field_input.dart';
 
@@ -110,11 +111,34 @@ class _GroupSignupScreenState extends State<GroupSignupScreen> {
     return Scaffold(
       // AppBar definition with back button.
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            Navigator.of(context).pop();
-          },
+        leading: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: InkWell(
+            onTap: () {
+              Navigator.of(context).pop();
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    AppColors.primaryButton,
+                    AppColors.secondaryBackground,
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.arrow_back_ios_new,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+          ),
         ),
         backgroundColor: mobileBackgroundColor,
         title: const Text('Create Group'),

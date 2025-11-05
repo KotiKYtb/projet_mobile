@@ -11,3 +11,4 @@ const primaryColor = Colors.white;
 const secondaryColor = Colors.grey;
 final appbarColor = Colors.grey.shade400; // Color.fromARGB(255, 105, 105, 105);
 const postcardColor = Color.fromARGB(255, 1, 1, 1);
+const redColor = Color.fromRGBO(255, 0, 0, 1);

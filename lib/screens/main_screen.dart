@@ -4,11 +4,11 @@ import '../bottom_nav.dart';
 import '../services/sync_service.dart';
 import '../services/connectivity_service.dart';
 import '../services/local_database.dart';
-import '../models/user_model.dart';
+import '../utils/app_colors.dart';
+import 'events_content.dart';
+import 'map_content.dart';
 import 'home_content.dart';
-import 'users_content.dart';
-import 'admin_content.dart';
-import 'organisation_content.dart';
+import 'infos_content.dart';
 import 'profile_content.dart';
 
 class MainPage extends StatefulWidget {
@@ -23,13 +23,11 @@ class _MainPageState extends State<MainPage> {
   String userName = '';
   bool loading = true;
   bool isOnline = true;
-  List<UserModel> users = [];
 
   @override
   void initState() {
     super.initState();
     _loadUserInfo();
-    _loadUsers();
     _setupConnectivityListener();
   }
 
@@ -135,20 +133,8 @@ class _MainPageState extends State<MainPage> {
   Future<void> _syncData() async {
     try {
       await SyncService.syncUsersFromApi();
-      await _loadUsers();
     } catch (e) {
       print('Erreur de synchronisation: $e');
-    }
-  }
-
-  Future<void> _loadUsers() async {
-    try {
-      final usersList = await SyncService.getUsers();
-      setState(() {
-        users = usersList;
-      });
-    } catch (e) {
-      print('Erreur de chargement des utilisateurs: $e');
     }
   }
 
@@ -277,20 +263,17 @@ class _MainPageState extends State<MainPage> {
   Widget _buildContent() {
     switch (_currentIndex) {
       case 0:
+        return const EventsContent();
+      case 1:
+        return const MapContent();
+      case 2:
         return HomeContent(
           userName: userName,
           userRole: userRole,
           loading: loading,
         );
-      case 1:
-        return UsersContent(
-          users: users,
-          isOnline: isOnline,
-        );
-      case 2:
-        return const AdminContent();
       case 3:
-        return const OrganisationContent();
+        return const InfosContent();
       case 4:
         return ProfileContent(
           userName: userName,
@@ -311,92 +294,14 @@ class _MainPageState extends State<MainPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey.shade300,
-      appBar: AppBar(
-        backgroundColor: Colors.grey.shade400,
-        elevation: 0,
-        title: Text(
-          _getAppBarTitle(),
-          style: const TextStyle(
-            color: Colors.black87,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        iconTheme: const IconThemeData(color: Colors.black87),
-        actions: [
-          // Indicateur de connectivité stylisé
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: isOnline ? Colors.green.shade50 : Colors.orange.shade50,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: isOnline ? Colors.green.shade300 : Colors.orange.shade300,
-                width: 1.5,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  isOnline ? Icons.wifi : Icons.wifi_off,
-                  color: isOnline ? Colors.green.shade700 : Colors.orange.shade700,
-                  size: 16,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  isOnline ? 'En ligne' : 'Hors ligne',
-                  style: TextStyle(
-                    color: isOnline ? Colors.green.shade700 : Colors.orange.shade700,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Bouton debug
-          IconButton(
-            onPressed: () => Navigator.pushNamed(context, '/debug'),
-            icon: const Icon(Icons.bug_report),
-            color: Colors.black87,
-            tooltip: 'Debug - Base de données',
-          ),
-          if (_currentIndex == 4) // Seulement sur la page profil
-            IconButton(
-              onPressed: _logout,
-              icon: Icon(
-                Icons.logout,
-                color: !isOnline ? Colors.orange.shade700 : Colors.black87,
-              ),
-              tooltip: !isOnline ? 'Déconnexion (Attention: mode offline)' : 'Se déconnecter',
-            ),
-        ],
-      ),
+      backgroundColor: AppColors.primaryBackground,
+      extendBody: true,
       body: _buildContent(),
       bottomNavigationBar: BottomNav(
         currentIndex: _currentIndex,
         onTap: _onBottomNavTap,
       ),
     );
-  }
-
-  String _getAppBarTitle() {
-    switch (_currentIndex) {
-      case 0:
-        return 'Accueil';
-      case 1:
-        return 'Utilisateurs';
-      case 2:
-        return 'Administration';
-      case 3:
-        return 'Organisation';
-      case 4:
-        return 'Profil';
-      default:
-        return 'App';
-    }
   }
 }
 
