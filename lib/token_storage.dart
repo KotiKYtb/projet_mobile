@@ -128,12 +128,30 @@ class TokenStorage {
     return value == 'true';
   }
 
-  // Déconnexion complète
+  // Déconnexion complète - supprime TOUS les tokens et données de session
   static Future<void> clearAll() async {
+    print('🧹 Suppression complète de tous les tokens et données de session...');
+    
+    // Supprimer le token principal
     await clear();
+    print('  ✅ Token principal supprimé');
+    
+    // Supprimer les rôles
     await clearRoles();
+    print('  ✅ Rôles supprimés');
+    
+    // Supprimer les données utilisateur
     await clearUserData();
+    print('  ✅ Données utilisateur supprimées');
+    
+    // Supprimer le refresh token
     await clearRefreshToken();
-    await setSessionValid(false);
+    print('  ✅ Refresh token supprimé');
+    
+    // Supprimer complètement la clé de session (pas juste la mettre à false)
+    await _storage.delete(key: _sessionValidKey);
+    print('  ✅ Session supprimée');
+    
+    print('✅ Tous les tokens et données de session ont été supprimés');
   }
 }

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Couleur pour le splash screen - correspond au dégradé bleu du splash Flutter -->
+    <color name="splash_background">#1a237e</color>
+</resources>
+
