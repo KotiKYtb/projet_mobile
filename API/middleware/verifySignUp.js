@@ -3,32 +3,19 @@ const ROLES = db.ROLES;
 const User = db.user;
 
 checkDuplicateUsernameOrEmail = (req, res, next) => {
-  // Username
+  // Email only (username n'est plus utilisé)
   User.findOne({
     where: {
-      username: req.body.username
+      email: req.body.email
     }
   }).then(user => {
     if (user) {
       res.status(400).send({
-        message: "Erreur! le compte utilisateur est déja existant!"
+        message: "Erreur! l'email utilisateur est déja existante!"
       });
       return;
     }
-    // Email
-    User.findOne({
-      where: {
-        email: req.body.email
-      }
-    }).then(user => {
-      if (user) {
-        res.status(400).send({
-          message: "Erreur! l'email utilisateur est déja existante!"
-        });
-        return;
-      }
-      next();
-    });
+    next();
   });
 };
 

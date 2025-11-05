@@ -19,48 +19,25 @@ verifyToken = (req, res, next) => {
 
 isAdmin = (req, res, next) => {
   User.findByPk(req.userId).then(user => {
-    user.getRoles().then(roles => {
-      for (let i = 0; i < roles.length; i++) {
-        if (roles[i].name === "admin") {
-          next();
-          return;
-        }
-      }
-      res.status(403).send({ message: "Le role Admin est necessaire!" });
-      return;
-    });
+    if (!user) return res.status(401).send({ message: "Unauthorized!" });
+    if (user.role === "admin") return next();
+    res.status(403).send({ message: "Le role Admin est necessaire!" });
   });
 };
 
 isModerator = (req, res, next) => {
   User.findByPk(req.userId).then(user => {
-    user.getRoles().then(roles => {
-      for (let i = 0; i < roles.length; i++) {
-        if (roles[i].name === "moderator") {
-          next();
-          return;
-        }
-      }
-      res.status(403).send({ message: "Le role Moderateur est necessaire!" });
-    });
+    if (!user) return res.status(401).send({ message: "Unauthorized!" });
+    if (user.role === "moderator") return next();
+    res.status(403).send({ message: "Le role Moderateur est necessaire!" });
   });
 };
 
 isModeratorOrAdmin = (req, res, next) => {
   User.findByPk(req.userId).then(user => {
-    user.getRoles().then(roles => {
-      for (let i = 0; i < roles.length; i++) {
-        if (roles[i].name === "moderator") {
-          next();
-          return;
-        }
-        if (roles[i].name === "admin") {
-          next();
-          return;
-        }
-      }
-      res.status(403).send({ message: "Le role Admin ou Moderateur est necessaire!" });
-    });
+    if (!user) return res.status(401).send({ message: "Unauthorized!" });
+    if (user.role === "moderator" || user.role === "admin") return next();
+    res.status(403).send({ message: "Le role Admin ou Moderateur est necessaire!" });
   });
 };
 

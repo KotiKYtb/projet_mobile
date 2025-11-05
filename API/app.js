@@ -10,7 +10,8 @@ var usersRouter = require('./routes/users');
 
 var app = express();
 var corsOptions = {
-  origin: "http://localhost:3000"
+  origin: true, // Accepte toutes les origines pour le développement
+  credentials: true
 };
 
 //app.set('views', path.join(__dirname, 'views'));
@@ -22,6 +23,7 @@ app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use('/', indexRouter);
 app.use('/users', usersRouter);
+app.use('/api/users', usersRouter);
 
 // simple route
 app.get('/', function(req, res) {
@@ -33,65 +35,35 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // database
 const db = require("./models");
-const Role = db.role;
+const shouldForceSync = process.env.RESET_DB === '1';
+db.sequelize
+  .sync(shouldForceSync ? { force: true } : { alter: true })
+  .then(function() {
+    if (shouldForceSync) {
+      console.log('Database recreated with { force: true }');
+    } else {
+      console.log('Database synced');
+    }
+  })
+  .catch(function(e) {
+    console.error('Database sync failed:', e.message);
+  });
 
-// synchronize database (auto-migrate in dev) and ensure base roles exist
-db.sequelize.sync({ alter: true }).then(async function() {
-  try {
-    await Role.findOrCreate({ where: { id: 1 }, defaults: { id: 1, name: 'user' } });
-    await Role.findOrCreate({ where: { id: 2 }, defaults: { id: 2, name: 'moderator' } });
-    await Role.findOrCreate({ where: { id: 3 }, defaults: { id: 3, name: 'admin' } });
-    console.log('Base roles ensured');
-  } catch (e) {
-    console.error('Failed ensuring base roles:', e.message);
-  }
-});
-
-// Drop and Resync Database with { force: true } on dev only
-// db.sequelize.sync({ force: true }).then(() => {
-//   console.log('Drop and Resync Database with { force: true }');
-//   initial();
-// });
+// To recreate DB once: set env RESET_DB=1 before starting the server
 
 // routes
 require('./routes/auth.routes')(app);
 require('./routes/user.routes')(app);
 require('./routes/event.routes')(app);
 
-// set port, listen for requests
-const PORT = process.env.PORT || 8080;
-app.listen(PORT, function() {
-  console.log(`Server is running on port ${PORT}.`);
-});
+// Note: Le serveur écoute via bin/www, pas ici
+// Si vous lancez directement app.js, décommentez les lignes ci-dessous:
+// const PORT = process.env.PORT || 8080;
+// app.listen(PORT, '0.0.0.0', function() {
+//   console.log(`Server is running on port ${PORT} and listening on all interfaces.`);
+// });
 
-// DEBUG: expose all users with roles (and stored password hash)
-// NOTE: For development only. Do NOT enable in production.
-app.get('/api/debug/users', async function(req, res) {
-  try {
-    const users = await db.user.findAll();
-    const data = await Promise.all(users.map(async function(u) {
-      const roles = await u.getRoles();
-      return {
-        id: u.id,
-        username: u.username,
-        email: u.email,
-        password_plain: u.password_plain,
-        password: u.password, // hashed password as stored
-        roles: roles.map(function(r) { return r.name; })
-      };
-    }));
-    res.json(data);
-  } catch (e) {
-    res.status(500).json({ message: e.message });
-  }
-});
-
-// la fonction initial va créer 3 enregistrements dans la table role de la BDD
-function initial() {
-  Role.create({ id: 1, name: "user" });
-  Role.create({ id: 2, name: "moderator" });
-  Role.create({ id: 3, name: "admin" });
-}
+// (debug route removed as roles/associations were refactored)
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {

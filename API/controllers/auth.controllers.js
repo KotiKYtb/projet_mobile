@@ -1,49 +1,31 @@
 const db = require("../models");
 const config = require("../config/auth.config");
 const User = db.user;
-const Role = db.role;
 const Op = db.Sequelize.Op;
 var jwt = require("jsonwebtoken");
 var bcrypt = require("bcryptjs");
 
 exports.signup = (req, res) => {
-  // Save User to Database
+  const { email, password, name, surname, role } = req.body || {};
+  if (!email || !password) {
+    return res.status(400).send({ message: "email et password requis" });
+  }
   User.create({
-    username: req.body.username,
-    email: req.body.email,
-    password: bcrypt.hashSync(req.body.password, 8),
-    password_plain: req.body.password
+    email: email,
+    password: bcrypt.hashSync(password, 8),
+    name: name || "",
+    surname: surname || "",
+    role: role || "user",
+    created_at: new Date(),
+    updated_at: new Date()
   })
-    .then(user => {
-      if (req.body.roles) {
-        Role.findAll({
-          where: {
-            name: {
-              [Op.or]: req.body.roles
-            }
-          }
-        }).then(roles => {
-          user.setRoles(roles).then(() => {
-            res.send({ message: "l'utilisateur est enregistré!" });
-          });
-        });
-      } else {
-        // user role = 1
-        user.setRoles([1]).then(() => {
-          res.send({ message: "l'utilisateur est enregistré!" });
-        });
-      }
-    })
-    .catch(err => {
-      res.status(500).send({ message: err.message });
-    });
+    .then(function() { res.send({ message: "Utilisateur enregistré" }); })
+    .catch(function(err) { res.status(500).send({ message: err.message }); });
 };
 
 exports.signin = (req, res) => {
   User.findOne({
-    where: {
-      username: req.body.username
-    }
+    where: { email: req.body.email }
   })
     .then(user => {
       if (!user) {
@@ -59,26 +41,60 @@ exports.signin = (req, res) => {
           message: "Mot de passe incorrect!"
         });
       }
-      var token = jwt.sign({ id: user.id }, config.secret, {
-        expiresIn: 86400 // 24 hours
+      // Access token (24 heures)
+      var accessToken = jwt.sign({ id: user.user_id, email: user.email }, config.secret, {
+        expiresIn: 86400 // 24 heures
       });
-      var authorities = [];
-      user.getRoles().then(roles => {
-        for (let i = 0; i < roles.length; i++) {
-          authorities.push("ROLE_" + roles[i].name.toUpperCase());
-        }
-        res.status(200).send({
-          id: user.id,
-          username: user.username,
-          email: user.email,
-          roles: authorities,
-          accessToken: token
-        });
+
+      // Refresh token (long terme - 7 jours)
+      var refreshToken = jwt.sign({ id: user.user_id, type: 'refresh' }, config.secret, {
+        expiresIn: 604800 // 7 jours
+      });
+
+      res.status(200).send({
+        id: user.user_id,
+        email: user.email,
+        name: user.name,
+        surname: user.surname,
+        role: user.role,
+        accessToken: accessToken,
+        refreshToken: refreshToken,
+        roles: [user.role]
       });
     })
     .catch(err => {
       res.status(500).send({ message: err.message });
     });
+};
+
+exports.refreshToken = (req, res) => {
+  const { refreshToken } = req.body;
+  
+  if (!refreshToken) {
+    return res.status(401).send({ message: "Refresh token requis" });
+  }
+
+  try {
+    // Vérifier le refresh token
+    const decoded = jwt.verify(refreshToken, config.secret);
+    
+    if (decoded.type !== 'refresh') {
+      return res.status(401).send({ message: "Token invalide" });
+    }
+
+    // Générer un nouveau access token
+    const newAccessToken = jwt.sign(
+      { id: decoded.id, email: decoded.email }, 
+      config.secret, 
+      { expiresIn: 86400 } // 24 heures
+    );
+
+    res.status(200).send({
+      accessToken: newAccessToken
+    });
+  } catch (err) {
+    res.status(401).send({ message: "Refresh token invalide ou expiré" });
+  }
 };
 
 

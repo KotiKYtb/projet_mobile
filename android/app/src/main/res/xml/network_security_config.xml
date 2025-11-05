@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- 
+    Permettre TOUTES les connexions HTTP (cleartext) pour le développement local.
+    Cela permet de se connecter à n'importe quelle IP locale.
+    ATTENTION: À utiliser uniquement en développement, pas en production!
+    -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
+
