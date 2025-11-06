@@ -18,15 +18,39 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
   bool _isMapExpanded = false;
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _mapKey = GlobalKey();
+  double _appBarOpacity = 0.0;
 
   // TODO: Replace with actual coordinates from the event
   static const double _defaultLat = 47.4739884;
   static const double _defaultLng = -0.5515588;
 
   @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+    // Initialiser l'opacité au démarrage
+    _appBarOpacity = 0.0;
+  }
+
+  @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    
+    // Calculer l'opacité de l'overlay sombre basé sur la position du scroll
+    // Plus on scroll, plus l'image devient sombre
+    final expandedHeight = 200.0;
+    final currentScroll = _scrollController.offset;
+    final opacity = (currentScroll / expandedHeight).clamp(0.0, 1.0);
+    
+    setState(() {
+      _appBarOpacity = opacity;
+    });
   }
 
   void _scrollToMap() {
@@ -92,33 +116,106 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                 ),
               ),
             ),
+            titleSpacing: 0,
             flexibleSpace: FlexibleSpaceBar(
-              title: Text(
-                widget.event.title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              background: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      AppColors.getMenuBackground(context),
-                      AppColors.getCardBackground(context),
-                    ],
-                  ),
-                ),
-                child: Center(
-                  child: Icon(
-                    Icons.event,
-                    size: 80,
-                    color: AppColors.primaryButton,
+              titlePadding: EdgeInsets.zero,
+              centerTitle: false,
+              title: Padding(
+                padding: const EdgeInsets.only(bottom: 16.0),
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Text(
+                    widget.event.title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 40,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
                   ),
                 ),
               ),
+                    background: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        // Image de fond
+                        widget.event.imageUrl != null && widget.event.imageUrl!.isNotEmpty
+                            ? Image.network(
+                                widget.event.imageUrl!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Container(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                        colors: [
+                                          AppColors.getMenuBackground(context),
+                                          AppColors.getCardBackground(context),
+                                        ],
+                                      ),
+                                    ),
+                                    child: Center(
+                                      child: Icon(
+                                        Icons.event,
+                                        size: 80,
+                                        color: AppColors.primaryButton,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                loadingBuilder: (context, child, loadingProgress) {
+                                  if (loadingProgress == null) return child;
+                                  return Container(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                        colors: [
+                                          AppColors.getMenuBackground(context),
+                                          AppColors.getCardBackground(context),
+                                        ],
+                                      ),
+                                    ),
+                                    child: Center(
+                                      child: CircularProgressIndicator(
+                                        valueColor: AlwaysStoppedAnimation<Color>(
+                                          AppColors.primaryButton,
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              )
+                            : Container(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [
+                                      AppColors.getMenuBackground(context),
+                                      AppColors.getCardBackground(context),
+                                    ],
+                                  ),
+                                ),
+                                child: Center(
+                                  child: Icon(
+                                    Icons.event,
+                                    size: 80,
+                                    color: AppColors.primaryButton,
+                                  ),
+                                ),
+                              ),
+                        // Overlay sombre par défaut (opacité de base)
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 100),
+                          color: Colors.black.withOpacity(0.4 + (_appBarOpacity * 0.4)),
+                          // Opacité de base: 0.4 (40% sombre)
+                          // Opacité maximale lors du scroll: 0.8 (80% sombre)
+                        ),
+                      ],
+                    ),
             ),
           ),
           // Event details
@@ -158,14 +255,14 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                           color: AppColors.primaryButton,
                         ),
                         title: Text(
-                          _formatDate(widget.event.date),
+                          _formatDate(widget.event.startAt.toLocal()),
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             color: AppColors.getTextPrimary(context),
                           ),
                         ),
                         subtitle: Text(
-                          _formatTime(widget.event.date),
+                          _formatTime(widget.event.startAt.toLocal()),
                           style: TextStyle(
                             color: AppColors.secondaryText,
                           ),
@@ -231,26 +328,25 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Description (placeholder)
-                  Text(
-                    'Description',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.primaryButton,
+                  // Description
+                  if (widget.event.description != null && widget.event.description!.isNotEmpty) ...[
+                    Text(
+                      'Description',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primaryButton,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Lorem ipsum dolor sit amet, consectetur adipiscing elit. '
-                    'Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. '
-                    'Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris '
-                    'nisi ut aliquip ex ea commodo consequat.',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: AppColors.textPrimary,
+                    const SizedBox(height: 8),
+                    Text(
+                      widget.event.description!,
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: AppColors.getTextPrimary(context),
+                      ),
                     ),
-                  ),
+                  ],
                   const SizedBox(height: 24),
 
                   // Map

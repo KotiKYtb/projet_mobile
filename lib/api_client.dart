@@ -22,7 +22,7 @@ class ApiClient {
   
   // Pour appareil physique (remplacez par votre IP locale) :
   // Essayez d'abord avec l'IP de votre réseau Wi-Fi (pas le hotspot):
-  static const String baseUrl = 'http://172.16.80.137:8080';
+  static const String baseUrl = 'http://172.16.80.151:8080';
   
   // Getter pour accéder à baseUrl depuis l'extérieur
   static String get apiBaseUrl => baseUrl;
@@ -176,6 +176,29 @@ class ApiClient {
         'Content-Type': 'application/json',
       },
       body: jsonEncode({'refreshToken': refreshToken}),
+    ).timeout(timeout);
+  }
+
+  // Récupérer la liste des événements (public, pas besoin de token)
+  static Future<http.Response> getEvents({
+    int page = 1,
+    int pageSize = 50,
+  }) {
+    return http.get(
+      Uri.parse('$baseUrl/api/events?page=$page&pageSize=$pageSize'),
+      headers: {
+        'Accept': 'application/json',
+      },
+    ).timeout(timeout);
+  }
+
+  // Récupérer un événement par son ID (public, pas besoin de token)
+  static Future<http.Response> getEventById(int eventId) {
+    return http.get(
+      Uri.parse('$baseUrl/api/events/$eventId'),
+      headers: {
+        'Accept': 'application/json',
+      },
     ).timeout(timeout);
   }
 }

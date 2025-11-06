@@ -18,7 +18,7 @@ class MainPage extends StatefulWidget {
 }
 
 class _MainPageState extends State<MainPage> {
-  int _currentIndex = 0;
+  int _currentIndex = 2; // Page home par défaut (index 2)
   String userRole = 'Chargement...';
   String userName = '';
   bool loading = true;

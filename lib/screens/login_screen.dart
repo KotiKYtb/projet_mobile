@@ -253,79 +253,6 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 32),
                 
-                // Indicateur de mode connectivité
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: isOnline ? Colors.green.shade50 : Colors.orange.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: isOnline ? Colors.green.shade200 : Colors.orange.shade200,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        isOnline ? Icons.wifi : Icons.wifi_off,
-                        color: isOnline ? Colors.green : Colors.orange,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        isOnline ? 'Mode en ligne' : 'Mode hors ligne',
-                        style: TextStyle(
-                          color: isOnline ? Colors.green.shade700 : Colors.orange.shade700,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                
-                // Message pour mode offline
-                if (!isOnline)
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    margin: const EdgeInsets.only(bottom: 16),
-                    decoration: BoxDecoration(
-                      color: lastUser != null ? Colors.blue.shade50 : Colors.red.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: lastUser != null ? Colors.blue.shade200 : Colors.red.shade200,
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          lastUser != null ? 'Mode hors ligne activé' : 'Mode hors ligne - Session expirée',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: lastUser != null ? Colors.blue.shade700 : Colors.red.shade700,
-                            fontSize: 12,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        if (lastUser != null) ...[
-                          Text(
-                            'Seul ${lastUser!.email} peut se connecter hors ligne.',
-                            style: TextStyle(fontSize: 11, color: Colors.blue.shade700),
-                          ),
-                        ] else ...[
-                          Text(
-                            'Vous avez été déconnecté. Connectez-vous au réseau pour vous reconnecter.',
-                            style: TextStyle(fontSize: 11, color: Colors.red.shade700),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                
                 // Champ Email avec style du template
                 Container(
                   decoration: BoxDecoration(
@@ -347,7 +274,7 @@ class _LoginPageState extends State<LoginPage> {
                     decoration: InputDecoration(
                       filled: true,
                       fillColor: AppColors.getMenuBackground(context),
-                      hintText: 'Enter your email',
+                      hintText: 'Entrez votre email',
                       hintStyle: TextStyle(color: AppColors.getTextDisabled(context)),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(4),
@@ -398,7 +325,7 @@ class _LoginPageState extends State<LoginPage> {
                     decoration: InputDecoration(
                       filled: true,
                       fillColor: isOnline ? AppColors.getMenuBackground(context) : AppColors.getMenuBackground(context).withOpacity(0.5),
-                      hintText: isOnline ? 'Enter your password' : 'Pas nécessaire en mode offline',
+                      hintText: isOnline ? 'Entrez votre mot de passe' : 'Pas nécessaire en mode hors ligne',
                       hintStyle: TextStyle(color: AppColors.getTextDisabled(context)),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(4),
@@ -494,7 +421,7 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                     child: !loading
                         ? Text(
-                            'Log in',
+                            'Se connecter',
                             style: TextStyle(
                               color: AppColors.getTextPrimary(context),
                               fontWeight: FontWeight.bold,
@@ -508,20 +435,15 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 24),
                 
-                Flexible(
-                  flex: 2,
-                  child: Container(),
-                ),
-                
-                // Lien vers l'inscription
+                // Lien vers l'inscription (juste sous les inputs)
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Container(
                       padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: const Text(
-                        'Don\'t have an account?',
-                        style: TextStyle(color: AppColors.secondaryText),
+                      child: Text(
+                        'Vous n\'avez pas de compte ?',
+                        style: TextStyle(color: AppColors.getTextDisabled(context)),
                       ),
                     ),
                     GestureDetector(
@@ -531,7 +453,7 @@ class _LoginPageState extends State<LoginPage> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 8),
                         child: Text(
-                          ' Signup.',
+                          ' S\'inscrire',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             color: (!isOnline && lastUser == null)
@@ -542,6 +464,11 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                   ],
+                ),
+                
+                Flexible(
+                  flex: 2,
+                  child: Container(),
                 ),
               ],
             ),

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Splash screen natif minimal - correspond au fond du splash Flutter -->
-<!-- Ce splash disparaît dès que Flutter affiche sa première frame (votre splash personnalisé) -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Fond dégradé bleu identique au splash Flutter -->
-    <item android:drawable="@drawable/splash_background" />
+    <!-- Couleur de fond unie correspondant au dark mode de l'app -->
+    <item>
+        <color android:color="#252d3c"/>
+    </item>
 </layer-list>

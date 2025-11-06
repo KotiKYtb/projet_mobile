@@ -1,19 +1,53 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import 'event_details_screen.dart';
 import '../utils/app_colors.dart';
+import '../api_client.dart';
+import '../services/connectivity_service.dart';
+import '../token_storage.dart';
 
 class EventItem {
-	final String id;
+	final int eventId;
 	final String title;
-	final String place;
-	final DateTime date;
+	final String? description;
+	final String? location;
+	final DateTime startAt;
+	final DateTime? endAt;
+	final String? category;
+	final String? imageUrl;
+	final String? createdBy;
 
 	EventItem({
-		required this.id,
+		required this.eventId,
 		required this.title,
-		required this.place,
-		required this.date,
+		this.description,
+		this.location,
+		required this.startAt,
+		this.endAt,
+		this.category,
+		this.imageUrl,
+		this.createdBy,
 	});
+
+	// Factory pour créer depuis les données de l'API
+	factory EventItem.fromJson(Map<String, dynamic> json) {
+		return EventItem(
+			eventId: json['event_id'] as int,
+			title: json['title'] as String,
+			description: json['description'] as String?,
+			location: json['location'] as String?,
+			startAt: DateTime.parse(json['startAt'] as String),
+			endAt: json['endAt'] != null ? DateTime.parse(json['endAt'] as String) : null,
+			category: json['category'] as String?,
+			imageUrl: json['image_url'] as String?,
+			createdBy: json['created_by'] as String?,
+		);
+	}
+
+	// Getters pour compatibilité avec l'ancien code
+	String get id => eventId.toString();
+	String get place => location ?? 'Lieu non spécifié';
+	DateTime get date => startAt;
 }
 
 class EventsContent extends StatefulWidget {
@@ -27,44 +61,13 @@ class _EventsContentState extends State<EventsContent> {
 	final TextEditingController _searchController = TextEditingController();
 	List<EventItem> _allEvents = [];
 	List<EventItem> _filteredEvents = [];
+	bool _isLoading = true;
+	String? _error;
 
 	@override
 	void initState() {
 		super.initState();
-		// TODO: Replace this mock data by real API/provider data
-		_allEvents = [
-			EventItem(
-				id: '1',
-				title: 'Festival des Arts',
-				place: 'Place du Ralliement',
-				date: DateTime.now().add(const Duration(days: 10)),
-			),
-			EventItem(
-				id: '2',
-				title: 'Concert Jazz',
-				place: 'Théâtre',
-				date: DateTime.now().add(const Duration(days: 4)),
-			),
-			EventItem(
-				id: '3',
-				title: 'Conférence Tech',
-				place: 'Université',
-				date: DateTime.now().add(const Duration(days: 20)),
-			),
-			EventItem(
-				id: '4',
-				title: 'Marché Nocturne',
-				place: 'Quai',
-				date: DateTime.now().add(const Duration(days: 2)),
-			),
-		];
-
-		// Keep only future events and sort by date
-		_allEvents = _allEvents.where((e) => e.date.isAfter(DateTime.now())).toList()
-			..sort((a, b) => a.date.compareTo(b.date));
-
-		_filteredEvents = List.from(_allEvents);
-
+		_loadEvents();
 		_searchController.addListener(_onSearchChanged);
 	}
 
@@ -82,16 +85,100 @@ class _EventsContentState extends State<EventsContent> {
 				_filteredEvents = List.from(_allEvents);
 			} else {
 				_filteredEvents = _allEvents.where((e) {
-					return e.title.toLowerCase().contains(q) || e.place.toLowerCase().contains(q);
+					return e.title.toLowerCase().contains(q) || 
+						(e.location?.toLowerCase().contains(q) ?? false);
 				}).toList();
 			}
 		});
 	}
 
+	Future<void> _loadEvents() async {
+		setState(() {
+			_isLoading = true;
+			_error = null;
+		});
+
+		try {
+			final isOnline = await ConnectivityService.checkConnectivity();
+			
+			if (isOnline) {
+				// Mode online - charger depuis l'API
+				await _loadEventsFromAPI();
+			} else {
+				// Mode offline - charger depuis le cache local
+				await _loadEventsFromCache();
+			}
+		} catch (e) {
+			print('❌ Erreur lors du chargement des événements: $e');
+			setState(() {
+				_error = 'Erreur lors du chargement des événements';
+				_isLoading = false;
+			});
+			// Essayer de charger depuis le cache en cas d'erreur
+			await _loadEventsFromCache();
+		}
+	}
+
+	Future<void> _loadEventsFromAPI() async {
+		try {
+			print('🔍 Chargement des événements depuis l\'API...');
+			final response = await ApiClient.getEvents(page: 1, pageSize: 100);
+			
+			if (response.statusCode == 200) {
+				final data = jsonDecode(response.body) as Map<String, dynamic>;
+				final eventsData = data['data'] as List<dynamic>;
+				
+				final events = eventsData
+					.map((json) => EventItem.fromJson(json as Map<String, dynamic>))
+					.toList();
+
+				// Filtrer les événements futurs et trier par date
+				final now = DateTime.now();
+				final futureEvents = events
+					.where((e) => e.startAt.isAfter(now))
+					.toList()
+					..sort((a, b) => a.startAt.compareTo(b.startAt));
+
+				// Sauvegarder dans le cache local
+				await _saveEventsToCache(futureEvents);
+
+				setState(() {
+					_allEvents = futureEvents;
+					_filteredEvents = List.from(_allEvents);
+					_isLoading = false;
+					_error = null;
+				});
+
+				print('✅ ${futureEvents.length} événements chargés depuis l\'API');
+			} else {
+				throw Exception('Erreur ${response.statusCode}: ${response.body}');
+			}
+		} catch (e) {
+			print('❌ Erreur API: $e');
+			throw e;
+		}
+	}
+
+	Future<void> _loadEventsFromCache() async {
+		// TODO: Implémenter le cache local si nécessaire
+		// Pour l'instant, on affiche juste un message
+		setState(() {
+			_allEvents = [];
+			_filteredEvents = [];
+			_isLoading = false;
+			if (_error == null) {
+				_error = 'Mode hors ligne - Aucun événement en cache';
+			}
+		});
+	}
+
+	Future<void> _saveEventsToCache(List<EventItem> events) async {
+		// TODO: Implémenter la sauvegarde dans le cache local
+		// Pour l'instant, on ne fait rien
+	}
+
 	Future<void> _refresh() async {
-		// TODO: trigger reload from API/provider
-		await Future.delayed(const Duration(milliseconds: 300));
-		setState(() {});
+		await _loadEvents();
 	}
 
 	String _formatDate(DateTime d) {
@@ -191,7 +278,69 @@ class _EventsContentState extends State<EventsContent> {
 							child: RefreshIndicator(
 								onRefresh: _refresh,
 								color: AppColors.primaryButton,
-								child: _filteredEvents.isEmpty
+								child: _isLoading
+									? ListView(
+										physics: const AlwaysScrollableScrollPhysics(),
+										padding: const EdgeInsets.only(bottom: 100),
+										children: [
+											SizedBox(
+												height: MediaQuery.of(context).size.height * 0.5,
+												child: Center(
+													child: Column(
+														mainAxisAlignment: MainAxisAlignment.center,
+														children: [
+															CircularProgressIndicator(
+																valueColor: AlwaysStoppedAnimation<Color>(
+																	AppColors.primaryButton,
+																),
+															),
+															const SizedBox(height: 16),
+															Text(
+																'Chargement des événements...',
+																style: TextStyle(
+																	color: AppColors.getTextPrimary(context),
+																),
+															),
+														],
+													),
+												),
+											),
+										],
+									)
+									: _error != null && _filteredEvents.isEmpty
+									? ListView(
+										physics: const AlwaysScrollableScrollPhysics(),
+										padding: const EdgeInsets.only(bottom: 100),
+										children: [
+											SizedBox(
+												height: MediaQuery.of(context).size.height * 0.5,
+												child: Center(
+													child: Column(
+														mainAxisAlignment: MainAxisAlignment.center,
+														children: [
+															Icon(
+																Icons.error_outline,
+																size: 48,
+																color: AppColors.getTextDisabled(context),
+															),
+															const SizedBox(height: 16),
+															Padding(
+																padding: const EdgeInsets.symmetric(horizontal: 32),
+																child: Text(
+																	_error!,
+																	style: TextStyle(
+																		color: AppColors.getTextPrimary(context),
+																	),
+																	textAlign: TextAlign.center,
+																),
+															),
+														],
+													),
+												),
+											),
+										],
+									)
+									: _filteredEvents.isEmpty
 										? ListView(
 												physics: const AlwaysScrollableScrollPhysics(),
 												padding: const EdgeInsets.only(bottom: 100),

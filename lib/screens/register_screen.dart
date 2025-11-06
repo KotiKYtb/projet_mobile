@@ -173,81 +173,6 @@ class _RegisterPageState extends State<RegisterPage> {
                   ),
                   const SizedBox(height: 24),
                   
-                  // Indicateur de mode connectivité
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    margin: const EdgeInsets.only(bottom: 16),
-                    decoration: BoxDecoration(
-                      color: isOnline ? Colors.green.shade50 : Colors.orange.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: isOnline ? Colors.green.shade200 : Colors.orange.shade200,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          isOnline ? Icons.wifi : Icons.wifi_off,
-                          color: isOnline ? Colors.green : Colors.orange,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          isOnline ? 'Mode en ligne' : 'Mode hors ligne',
-                          style: TextStyle(
-                            color: isOnline ? Colors.green.shade700 : Colors.orange.shade700,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  
-                  // Message pour mode offline
-                  if (!isOnline)
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      margin: const EdgeInsets.only(bottom: 16),
-                      decoration: BoxDecoration(
-                        color: Colors.red.shade50,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: Colors.red.shade200,
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              const Icon(Icons.block, color: Colors.red, size: 20),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Inscription désactivée',
-                                style: TextStyle(
-                                  color: Colors.red.shade700,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'L\'inscription n\'est pas disponible en mode hors ligne. Veuillez vous connecter à internet pour créer un compte.',
-                            style: TextStyle(
-                              color: Colors.red.shade700,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  
                   // Champ Prénom avec style du template
                   Container(
                     decoration: BoxDecoration(
@@ -269,7 +194,7 @@ class _RegisterPageState extends State<RegisterPage> {
                       decoration: InputDecoration(
                         filled: true,
                         fillColor: isOnline ? AppColors.getMenuBackground(context) : AppColors.getMenuBackground(context).withOpacity(0.5),
-                        hintText: 'Enter your first name',
+                        hintText: 'Entrez votre prénom',
                         hintStyle: TextStyle(color: AppColors.getTextDisabled(context)),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(4),
@@ -319,7 +244,7 @@ class _RegisterPageState extends State<RegisterPage> {
                       decoration: InputDecoration(
                         filled: true,
                         fillColor: isOnline ? AppColors.getMenuBackground(context) : AppColors.getMenuBackground(context).withOpacity(0.5),
-                        hintText: 'Enter your last name',
+                        hintText: 'Entrez votre nom',
                         hintStyle: TextStyle(color: AppColors.getTextDisabled(context)),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(4),
@@ -370,7 +295,7 @@ class _RegisterPageState extends State<RegisterPage> {
                       decoration: InputDecoration(
                         filled: true,
                         fillColor: isOnline ? AppColors.getMenuBackground(context) : AppColors.getMenuBackground(context).withOpacity(0.5),
-                        hintText: 'Enter your email',
+                        hintText: 'Entrez votre email',
                         hintStyle: TextStyle(color: AppColors.getTextDisabled(context)),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(4),
@@ -416,12 +341,12 @@ class _RegisterPageState extends State<RegisterPage> {
                       controller: passCtrl,
                       obscureText: !_isPasswordVisible,
                       enabled: isOnline,
-                      validator: (v) => (v == null || v.length < 6) ? 'Min 6 chars' : null,
+                      validator: (v) => (v == null || v.length < 6) ? 'Min 6 caractères' : null,
                       style: TextStyle(color: AppColors.getTextPrimary(context)),
                       decoration: InputDecoration(
                         filled: true,
                         fillColor: isOnline ? AppColors.getMenuBackground(context) : AppColors.getMenuBackground(context).withOpacity(0.5),
-                        hintText: 'Enter your password',
+                        hintText: 'Entrez votre mot de passe',
                         hintStyle: TextStyle(color: AppColors.getTextDisabled(context)),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(4),
@@ -451,7 +376,7 @@ class _RegisterPageState extends State<RegisterPage> {
                                 _isPasswordVisible
                                     ? Icons.visibility
                                     : Icons.visibility_off,
-                                color: AppColors.textDisabled,
+                                color: AppColors.getTextDisabled(context),
                               ),
                               onPressed: () {
                                 setState(() {
@@ -491,7 +416,7 @@ class _RegisterPageState extends State<RegisterPage> {
                       decoration: InputDecoration(
                         filled: true,
                         fillColor: isOnline ? AppColors.getMenuBackground(context) : AppColors.getMenuBackground(context).withOpacity(0.5),
-                        hintText: 'Confirm your password',
+                        hintText: 'Confirmez votre mot de passe',
                         hintStyle: TextStyle(color: AppColors.getTextDisabled(context)),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(4),
@@ -521,7 +446,7 @@ class _RegisterPageState extends State<RegisterPage> {
                                 _isConfirmPasswordVisible
                                     ? Icons.visibility
                                     : Icons.visibility_off,
-                                color: AppColors.textDisabled,
+                                color: AppColors.getTextDisabled(context),
                               ),
                               onPressed: () {
                                 setState(() {
@@ -604,7 +529,7 @@ class _RegisterPageState extends State<RegisterPage> {
                                   ],
                                 )
                               : Text(
-                                  'Sign up',
+                                  'S\'inscrire',
                                   style: TextStyle(
                                     color: AppColors.getTextPrimary(context),
                                     fontWeight: FontWeight.bold,
@@ -624,17 +549,17 @@ class _RegisterPageState extends State<RegisterPage> {
                     children: [
                       Container(
                         padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: const Text(
-                          'Already have an account?',
-                          style: TextStyle(color: AppColors.secondaryText),
-                        ),
+                      child: Text(
+                        'Vous avez déjà un compte ?',
+                        style: TextStyle(color: AppColors.getTextDisabled(context)),
+                      ),
                       ),
                       GestureDetector(
                         onTap: () => Navigator.pushReplacementNamed(context, '/login'),
                         child: Container(
                           padding: const EdgeInsets.symmetric(vertical: 8),
                           child: const Text(
-                            ' Login.',
+                            ' Se connecter',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               color: AppColors.primaryButton,
