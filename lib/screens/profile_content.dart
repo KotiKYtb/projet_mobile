@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'dart:async';
 import 'dart:convert';
 import '../utils/app_colors.dart';
 import '../services/theme_service.dart';
 import '../api_client.dart';
 import '../token_storage.dart';
-import 'easter_egg_screen.dart';
 
 class ProfileSection {
   final String title;
@@ -44,10 +42,6 @@ class ProfileContent extends StatefulWidget {
 
 class _ProfileContentState extends State<ProfileContent> {
   List<ProfileSection>? _sections;
-  
-  // Compteur invisible pour l'easter egg
-  int _easterEggClickCount = 0;
-  Timer? _easterEggResetTimer;
 
   List<ProfileSection> _initSections(BuildContext context) {
     final sections = [
@@ -189,41 +183,6 @@ class _ProfileContentState extends State<ProfileContent> {
     return _UsersListWidget();
   }
 
-  void _handleAvatarClick() {
-    // Réinitialiser le timer précédent s'il existe
-    _easterEggResetTimer?.cancel();
-    
-    // Incrémenter le compteur
-    setState(() {
-      _easterEggClickCount++;
-    });
-    
-    // Si on a atteint 5 clics, ouvrir la page easter egg
-    if (_easterEggClickCount >= 5) {
-      _easterEggClickCount = 0;
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) => const EasterEggScreen(),
-        ),
-      );
-    } else {
-      // Réinitialiser le compteur après 3 secondes si l'utilisateur ne clique pas assez vite
-      _easterEggResetTimer = Timer(const Duration(seconds: 3), () {
-        if (mounted) {
-          setState(() {
-            _easterEggClickCount = 0;
-          });
-        }
-      });
-    }
-  }
-
-  @override
-  void dispose() {
-    _easterEggResetTimer?.cancel();
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
     if (widget.loading) {
@@ -253,59 +212,56 @@ class _ProfileContentState extends State<ProfileContent> {
               child: Column(
                 children: [
                         // Avatar avec indicateur de statut
-                    GestureDetector(
-                      onTap: _handleAvatarClick,
-                      child: Stack(
-                        children: [
-                          Container(
+                    Stack(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: AppColors.primaryButton,
+                              width: 3,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.primaryButton.withOpacity(0.4),
+                                blurRadius: 12,
+                                spreadRadius: 2,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          child: CircleAvatar(
+                            radius: 50,
+                            backgroundColor: AppColors.primaryButton.withOpacity(0.2),
+                            child: Icon(
+                              Icons.person,
+                              size: 50,
+                              color: AppColors.primaryButton,
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Container(
                             padding: const EdgeInsets.all(4),
                             decoration: BoxDecoration(
+                              color: widget.isOnline ? Colors.green : Colors.orange,
                               shape: BoxShape.circle,
                               border: Border.all(
-                                color: AppColors.primaryButton,
-                                width: 3,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppColors.primaryButton.withOpacity(0.4),
-                                  blurRadius: 12,
-                                  spreadRadius: 2,
-                                  offset: const Offset(0, 3),
-                                ),
-                              ],
-                            ),
-                            child: CircleAvatar(
-                              radius: 50,
-                              backgroundColor: AppColors.primaryButton.withOpacity(0.2),
-                              child: Icon(
-                                Icons.person,
-                                size: 50,
-                                color: AppColors.primaryButton,
-                              ),
-                            ),
-                          ),
-                          Positioned(
-                            bottom: 0,
-                            right: 0,
-                            child: Container(
-                              padding: const EdgeInsets.all(4),
-                              decoration: BoxDecoration(
-                                color: widget.isOnline ? Colors.green : Colors.orange,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: Colors.white,
-                                  width: 2,
-                                ),
-                              ),
-                              child: Icon(
-                                widget.isOnline ? Icons.wifi : Icons.wifi_off,
-                                size: 14,
                                 color: Colors.white,
+                                width: 2,
                               ),
                             ),
+                            child: Icon(
+                              widget.isOnline ? Icons.wifi : Icons.wifi_off,
+                              size: 14,
+                              color: Colors.white,
+                            ),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 16),
                     // Nom d'utilisateur
