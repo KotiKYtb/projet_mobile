@@ -6,13 +6,13 @@ exports.list = async function(req, res) {
     const { page = 1, pageSize = 50, updatedSince } = req.query;
     const where = {};
     if (updatedSince) {
-      where.updatedAt = { [db.Sequelize.Op.gte]: new Date(updatedSince) };
+      where.updated_at = { [db.Sequelize.Op.gte]: new Date(updatedSince) };
     }
     const limit = Math.min(parseInt(pageSize), 200) || 50;
     const offset = (Math.max(parseInt(page), 1) - 1) * limit;
     const { rows, count } = await Event.findAndCountAll({
       where,
-      order: [["updatedAt", "DESC"]],
+      order: [["updated_at", "DESC"]],
       limit,
       offset
     });
@@ -34,7 +34,16 @@ exports.getById = async function(req, res) {
 
 exports.create = async function(req, res) {
   try {
-    const event = await Event.create(req.body);
+    // Utiliser req.userId du middleware authJwt pour created_by
+    const now = new Date();
+    const eventData = {
+      ...req.body,
+      created_by: req.userId || req.body.created_by,
+      // S'assurer que les timestamps sont définis (au cas où Sequelize ne les gère pas automatiquement)
+      created_at: now,
+      updated_at: now
+    };
+    const event = await Event.create(eventData);
     res.status(201).json(event);
   } catch (e) {
     res.status(400).json({ message: e.message });

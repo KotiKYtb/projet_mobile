@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'event_details_screen.dart';
 import '../utils/app_colors.dart';
@@ -40,7 +41,7 @@ class EventItem {
 			endAt: json['endAt'] != null ? DateTime.parse(json['endAt'] as String) : null,
 			category: json['category'] as String?,
 			imageUrl: json['image_url'] as String?,
-			createdBy: json['created_by'] as String?,
+			createdBy: json['created_by']?.toString(),
 		);
 	}
 
@@ -63,12 +64,21 @@ class _EventsContentState extends State<EventsContent> {
 	List<EventItem> _filteredEvents = [];
 	bool _isLoading = true;
 	String? _error;
+	Set<int> _favoriteEventIds = {}; // IDs des événements favoris
 
 	@override
 	void initState() {
 		super.initState();
 		_loadEvents();
+		_loadFavorites();
 		_searchController.addListener(_onSearchChanged);
+	}
+
+	@override
+	void didChangeDependencies() {
+		super.didChangeDependencies();
+		// Recharger les favoris quand on revient sur la page
+		_loadFavorites();
 	}
 
 	@override
@@ -132,24 +142,20 @@ class _EventsContentState extends State<EventsContent> {
 					.map((json) => EventItem.fromJson(json as Map<String, dynamic>))
 					.toList();
 
-				// Filtrer les événements futurs et trier par date
-				final now = DateTime.now();
-				final futureEvents = events
-					.where((e) => e.startAt.isAfter(now))
-					.toList()
-					..sort((a, b) => a.startAt.compareTo(b.startAt));
+				// Trier par date
+				events.sort((a, b) => a.startAt.compareTo(b.startAt));
 
 				// Sauvegarder dans le cache local
-				await _saveEventsToCache(futureEvents);
+				await _saveEventsToCache(events);
 
 				setState(() {
-					_allEvents = futureEvents;
+					_allEvents = events;
 					_filteredEvents = List.from(_allEvents);
 					_isLoading = false;
 					_error = null;
 				});
 
-				print('✅ ${futureEvents.length} événements chargés depuis l\'API');
+				print('✅ ${events.length} événements chargés depuis l\'API');
 			} else {
 				throw Exception('Erreur ${response.statusCode}: ${response.body}');
 			}
@@ -177,8 +183,87 @@ class _EventsContentState extends State<EventsContent> {
 		// Pour l'instant, on ne fait rien
 	}
 
+	Future<void> _loadFavorites() async {
+		try {
+			final token = await TokenStorage.read();
+			if (token == null) {
+				setState(() {
+					_favoriteEventIds = {};
+				});
+				return;
+			}
+
+			final response = await ApiClient.getFavorites(token: token);
+			if (response.statusCode == 200) {
+				final data = jsonDecode(response.body) as Map<String, dynamic>;
+				final favoritesData = data['favorites'] as List<dynamic>? ?? [];
+				final favoriteIds = favoritesData
+					.map((f) => (f as Map<String, dynamic>)['event_id'] as int)
+					.toSet();
+				
+				setState(() {
+					_favoriteEventIds = favoriteIds;
+				});
+			}
+		} catch (e) {
+			print('Erreur lors du chargement des favoris: $e');
+		}
+	}
+
+	Future<void> _toggleFavorite(EventItem event) async {
+		try {
+			final token = await TokenStorage.read();
+			if (token == null) {
+				if (mounted) {
+					ScaffoldMessenger.of(context).showSnackBar(
+						const SnackBar(
+							content: Text('Vous devez être connecté pour ajouter aux favoris'),
+							duration: Duration(seconds: 2),
+						),
+					);
+				}
+				return;
+			}
+
+			final isFavorite = _favoriteEventIds.contains(event.eventId);
+			http.Response response;
+
+			if (isFavorite) {
+				// Retirer des favoris
+				response = await ApiClient.removeFavorite(
+					token: token,
+					eventId: event.eventId,
+				);
+			} else {
+				// Ajouter aux favoris
+				response = await ApiClient.addFavorite(
+					token: token,
+					eventId: event.eventId,
+				);
+			}
+
+			if (response.statusCode == 200 || response.statusCode == 201) {
+				// Recharger les favoris depuis l'API pour être sûr d'avoir l'état à jour
+				await _loadFavorites();
+			} else {
+				throw Exception('Erreur ${response.statusCode}: ${response.body}');
+			}
+		} catch (e) {
+			print('Erreur lors de la sauvegarde du favori: $e');
+			if (mounted) {
+				ScaffoldMessenger.of(context).showSnackBar(
+					SnackBar(
+						content: Text('Erreur: ${e.toString()}'),
+						duration: const Duration(seconds: 2),
+					),
+				);
+			}
+		}
+	}
+
 	Future<void> _refresh() async {
 		await _loadEvents();
+		await _loadFavorites();
 	}
 
 	String _formatDate(DateTime d) {
@@ -367,13 +452,15 @@ class _EventsContentState extends State<EventsContent> {
 												itemBuilder: (context, index) {
 													final ev = _filteredEvents[index];
 													return InkWell(
-														onTap: () {
-															Navigator.push(
+														onTap: () async {
+															await Navigator.push(
 																context,
 																MaterialPageRoute(
 																	builder: (context) => EventDetailsScreen(event: ev),
 																),
 															);
+															// Recharger les favoris après retour
+															_loadFavorites();
 														},
 														child: Container(
 															padding: const EdgeInsets.all(12),
@@ -448,10 +535,12 @@ class _EventsContentState extends State<EventsContent> {
 																		const SizedBox(height: 8),
 																		IconButton(
 																			onPressed: () {
-																				// TODO: toggle favorite or open details
+																				_toggleFavorite(ev);
 																			},
-																			icon: const Icon(
-																				Icons.star_border,
+																			icon: Icon(
+																				_favoriteEventIds.contains(ev.eventId)
+																					? Icons.star
+																					: Icons.star_border,
 																				color: AppColors.primaryButton,
 																			),
 																		),

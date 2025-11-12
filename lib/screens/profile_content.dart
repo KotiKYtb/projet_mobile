@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'dart:convert';
 import '../utils/app_colors.dart';
 import '../services/theme_service.dart';
+import '../api_client.dart';
+import '../token_storage.dart';
 
 class ProfileSection {
   final String title;
@@ -41,7 +44,7 @@ class _ProfileContentState extends State<ProfileContent> {
   List<ProfileSection>? _sections;
 
   List<ProfileSection> _initSections(BuildContext context) {
-    return [
+    final sections = [
       ProfileSection(
         title: 'Préférences application',
         icon: Icons.settings_outlined,
@@ -129,8 +132,56 @@ class _ProfileContentState extends State<ProfileContent> {
         ],
       ),
     ];
+    
+    // Ajouter la section Administrateur uniquement si l'utilisateur est admin
+    if (widget.userRole.toLowerCase() == 'admin') {
+      sections.add(
+        ProfileSection(
+          title: 'Administrateur',
+          icon: Icons.admin_panel_settings,
+          content: [
+            _buildAdminTabs(context),
+          ],
+        ),
+      );
+    }
+    
+    return sections;
   }
-
+  
+  Widget _buildAdminTabs(BuildContext context) {
+    return DefaultTabController(
+      length: 1, // Pour l'instant, un seul onglet "Utilisateur"
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TabBar(
+            labelColor: AppColors.primaryButton,
+            unselectedLabelColor: AppColors.getTextDisabled(context),
+            indicatorColor: AppColors.primaryButton,
+            tabs: const [
+              Tab(
+                icon: Icon(Icons.people_outline),
+                text: 'Utilisateur',
+              ),
+            ],
+          ),
+          SizedBox(
+            height: 400, // Hauteur fixe pour le contenu des onglets
+            child: TabBarView(
+              children: [
+                _buildUsersTab(context),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildUsersTab(BuildContext context) {
+    return _UsersListWidget();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -323,6 +374,401 @@ class _ProfileContentState extends State<ProfileContent> {
             );
           }),
           const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+}
+
+// Modèle pour représenter un utilisateur dans la liste admin
+class _UserListItem {
+  final int userId;
+  final String email;
+  final String name;
+  final String surname;
+  final String role;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  _UserListItem({
+    required this.userId,
+    required this.email,
+    required this.name,
+    required this.surname,
+    required this.role,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  factory _UserListItem.fromJson(Map<String, dynamic> json) {
+    return _UserListItem(
+      userId: json['user_id'] as int,
+      email: json['email'] as String,
+      name: json['name'] as String,
+      surname: json['surname'] as String,
+      role: json['role'] as String,
+      createdAt: DateTime.parse(json['created_at'] as String),
+      updatedAt: DateTime.parse(json['updated_at'] as String),
+    );
+  }
+}
+
+// Widget pour afficher la liste des utilisateurs
+class _UsersListWidget extends StatefulWidget {
+  @override
+  State<_UsersListWidget> createState() => _UsersListWidgetState();
+}
+
+class _UsersListWidgetState extends State<_UsersListWidget> {
+  List<_UserListItem> _users = [];
+  bool _isLoading = true;
+  String? _errorMessage;
+  int? _currentUserId;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCurrentUserId();
+    _loadUsers();
+  }
+
+  Future<void> _loadCurrentUserId() async {
+    try {
+      final token = await TokenStorage.read();
+      if (token != null) {
+        // Décoder le token JWT pour obtenir l'ID de l'utilisateur
+        final parts = token.split('.');
+        if (parts.length == 3) {
+          final payload = parts[1];
+          String normalizedPayload = payload;
+          switch (payload.length % 4) {
+            case 1:
+              normalizedPayload += '===';
+              break;
+            case 2:
+              normalizedPayload += '==';
+              break;
+            case 3:
+              normalizedPayload += '=';
+              break;
+          }
+          normalizedPayload = normalizedPayload.replaceAll('-', '+').replaceAll('_', '/');
+          final decodedBytes = base64Decode(normalizedPayload);
+          final decodedString = utf8.decode(decodedBytes);
+          final payloadMap = jsonDecode(decodedString) as Map<String, dynamic>;
+          final userId = payloadMap['id'] as int?;
+          setState(() {
+            _currentUserId = userId;
+          });
+        }
+      }
+    } catch (e) {
+      print('Erreur lors de la récupération de l\'ID utilisateur: $e');
+    }
+  }
+
+  Future<void> _loadUsers() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final token = await TokenStorage.read();
+      if (token == null) {
+        setState(() {
+          _errorMessage = 'Token non disponible';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      final response = await ApiClient.getAllUsers(token: token);
+      
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        setState(() {
+          _users = data.map((json) => _UserListItem.fromJson(json)).toList();
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _errorMessage = 'Erreur lors du chargement: ${response.statusCode}';
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Erreur: $e';
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _updateUserRole(int userId, String newRole) async {
+    try {
+      final token = await TokenStorage.read();
+      if (token == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Token non disponible')),
+        );
+        return;
+      }
+
+      final response = await ApiClient.updateUserRole(
+        token: token,
+        userId: userId,
+        role: newRole,
+      );
+
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Rôle mis à jour avec succès')),
+        );
+        _loadUsers(); // Recharger la liste
+      } else {
+        final errorData = jsonDecode(response.body);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur: ${errorData['message'] ?? 'Erreur inconnue'}')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur: $e')),
+      );
+    }
+  }
+
+  void _showRoleDialog(_UserListItem user) {
+    final roles = ['user', 'admin', 'organisation'];
+    final currentRoleIndex = roles.indexOf(user.role);
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          'Changer le rôle',
+          style: TextStyle(color: AppColors.getTextPrimary(context)),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${user.name} ${user.surname}',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: AppColors.getTextPrimary(context),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              user.email,
+              style: TextStyle(color: AppColors.getTextDisabled(context)),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Rôle actuel: ${user.role}',
+              style: TextStyle(color: AppColors.getTextPrimary(context)),
+            ),
+            const SizedBox(height: 16),
+            ...roles.map((role) => RadioListTile<String>(
+              title: Text(
+                role,
+                style: TextStyle(color: AppColors.getTextPrimary(context)),
+              ),
+              value: role,
+              groupValue: user.role,
+              onChanged: (value) {
+                if (value != null) {
+                  Navigator.pop(context);
+                  _updateUserRole(user.userId, value);
+                }
+              },
+              activeColor: AppColors.primaryButton,
+            )),
+          ],
+        ),
+        backgroundColor: AppColors.getCardBackground(context),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Annuler',
+              style: TextStyle(color: AppColors.getTextDisabled(context)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    // Ajouter 1 heure pour UTC+1
+    final dateUTC1 = date.add(const Duration(hours: 1));
+    return '${dateUTC1.day}/${dateUTC1.month}/${dateUTC1.year} ${dateUTC1.hour.toString().padLeft(2, '0')}:${dateUTC1.minute.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Gestion des utilisateurs',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.getTextPrimary(context),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                onPressed: _loadUsers,
+                color: AppColors.primaryButton,
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Flexible(
+            child: _isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryButton),
+                    ),
+                  )
+                : _errorMessage != null
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              _errorMessage!,
+                              style: TextStyle(color: AppColors.getTextDisabled(context)),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 16),
+                            ElevatedButton(
+                              onPressed: _loadUsers,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.primaryButton,
+                              ),
+                              child: const Text('Réessayer'),
+                            ),
+                          ],
+                        ),
+                      )
+                    : _users.isEmpty
+                        ? Center(
+                            child: Text(
+                              'Aucun utilisateur trouvé',
+                              style: TextStyle(color: AppColors.getTextDisabled(context)),
+                            ),
+                          )
+                        : ListView.builder(
+                            itemCount: _users.length,
+                            itemBuilder: (context, index) {
+                              final user = _users[index];
+                              return Card(
+                                margin: const EdgeInsets.only(bottom: 12),
+                                color: AppColors.getCardBackground(context),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  side: BorderSide(
+                                    color: AppColors.primaryButton.withOpacity(0.2),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: ListTile(
+                                  contentPadding: const EdgeInsets.all(16),
+                                  leading: CircleAvatar(
+                                    backgroundColor: AppColors.primaryButton.withOpacity(0.2),
+                                    child: Icon(
+                                      Icons.person,
+                                      color: AppColors.primaryButton,
+                                    ),
+                                  ),
+                                  title: Text(
+                                    '${user.name} ${user.surname}',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.getTextPrimary(context),
+                                    ),
+                                  ),
+                                  subtitle: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        user.email,
+                                        style: TextStyle(
+                                          color: AppColors.getTextDisabled(context),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Row(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 4,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: AppColors.primaryButton.withOpacity(0.2),
+                                              borderRadius: BorderRadius.circular(12),
+                                            ),
+                                            child: Text(
+                                              user.role,
+                                              style: const TextStyle(
+                                                color: AppColors.primaryButton,
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        'Créé le: ${_formatDate(user.createdAt)}',
+                                        style: TextStyle(
+                                          color: AppColors.getTextDisabled(context),
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                      Text(
+                                        'Dernière mise à jour: ${_formatDate(user.updatedAt)}',
+                                        style: TextStyle(
+                                          color: AppColors.getTextDisabled(context),
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  trailing: _currentUserId != null && user.userId == _currentUserId
+                                      ? Tooltip(
+                                          message: 'Vous ne pouvez pas modifier votre propre compte',
+                                          child: IconButton(
+                                            icon: const Icon(Icons.edit),
+                                            color: AppColors.getTextDisabled(context),
+                                            onPressed: null, // Désactivé
+                                          ),
+                                        )
+                                      : IconButton(
+                                          icon: const Icon(Icons.edit),
+                                          color: AppColors.primaryButton,
+                                          onPressed: () => _showRoleDialog(user),
+                                        ),
+                                ),
+                              );
+                            },
+                          ),
+          ),
         ],
       ),
     );

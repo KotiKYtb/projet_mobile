@@ -1,23 +1,44 @@
 #!/usr/bin/env node
 
 /**
- * Script pour créer un événement via la ligne de commande
+ * Script pour créer automatiquement des événements prédéfinis
  * 
- * Champs requis:
- *   - title (titre)
- *   - startAt (date de début au format ISO: "2024-12-25T10:00:00")
- *   - created_by (email de l'utilisateur créateur)
- * 
- * Champs optionnels:
- *   - description
- *   - endAt (date de fin au format ISO)
- *   - location (lieu)
- *   - category (catégorie)
- *   - image_url (URL de l'image)
+ * Les événements sont définis en dur dans le fichier et créés automatiquement
  * 
  * Usage:
  *   node create-event.js
  */
+
+// Événements prédéfinis à créer
+const PREDEFINED_EVENTS = [
+  {
+    title: "Conférence Tech",
+    description: "Conférence sur les dernières innovations technologiques avec des experts du secteur.",
+    startAt: "2025-08-10T14:00:00",
+    endAt: "2025-08-10T18:00:00",
+    location: "Université d'Angers",
+    category: "Éducation",
+    image_url: "https://imgs.search.brave.com/KENcVy6cvsfPkhq30lzwpsikGFS3z5YAws7y8TV0ztE/rs:fit:500:0:1:0/g:ce/aHR0cHM6Ly90aG90/aXNtZWRpYS5jb20v/d3AtY29udGVudC91/cGxvYWRzLzIwMjUv/MDEvTG9nb19Fc2Fp/cF9ibGFuYy5wbmc"
+  },
+  {
+    title: "Marché Nocturne",
+    description: "Marché de nuit avec produits locaux, artisanat et animations.",
+    startAt: "2025-05-30T18:00:00",
+    endAt: "2025-05-30T23:00:00",
+    location: "Quai de la Loire",
+    category: "Commerce",
+    image_url: "https://imgs.search.brave.com/rV5rnw9INKbaQXwdnjvZCe4GE8HywJaCXMkyBxjEfJs/rs:fit:500:0:1:0/g:ce/aHR0cHM6Ly9pLnBp/bmltZy5jb20vb3Jp/Z2luYWxzLzM4L2M1/L2RjLzM4YzVkYzlh/YjJhZDAxMDY0YzUy/NzZjM2JmODdhNWYx/LmpwZw"
+  },
+  {
+    title: "Exposition d'Art Contemporain",
+    description: "Exposition d'œuvres d'artistes contemporains locaux et internationaux.",
+    startAt: "2025-09-01T10:00:00",
+    endAt: "2025-09-30T18:00:00",
+    location: "Musée des Beaux-Arts",
+    category: "Culture",
+    image_url: "https://imgs.search.brave.com/f5DBWxhtkm-1zeNxR-I-zzaPXBVTPiW6Vtf7BpHRETQ/rs:fit:500:0:1:0/g:ce/aHR0cHM6Ly93d3cu/ZWxsZXNib3VnZW50/LmNvbS9kb2N1bWVu/dHMvcGFydGVuYWly/ZXMvMTc3L2xvZ29f/ZXNhaXBfaW5nZW5p/ZXVyX3J2Yl8yMDE2/LnRodW1iLmpwZw"
+  }
+];
 
 const http = require('http');
 const https = require('https');
@@ -25,7 +46,7 @@ const readline = require('readline');
 const { URL } = require('url');
 
 // Configuration
-const API_URL = process.env.API_URL || 'http://172.16.80.151:8080';
+const API_URL = process.env.API_URL || 'http://172.16.81.38:8080';
 
 // Interface readline pour lire les entrées utilisateur
 const rl = readline.createInterface({
@@ -111,8 +132,6 @@ async function login(email, password) {
 
 // Fonction pour créer un événement
 async function createEvent(eventData, token) {
-  console.log('\n📅 Création de l\'événement...');
-  
   try {
     const response = await makeRequest(
       `${API_URL}/api/events`,
@@ -122,22 +141,19 @@ async function createEvent(eventData, token) {
     );
 
     if (response.statusCode === 201) {
-      console.log('✅ Événement créé avec succès!');
-      console.log('\n📋 Détails de l\'événement créé:');
-      console.log(JSON.stringify(response.body, null, 2));
-      return response.body;
+      return { success: true, event: response.body };
     } else {
-      throw new Error(`Échec de la création: ${response.body.message || 'Erreur inconnue'}`);
+      return { success: false, error: response.body.message || 'Erreur inconnue' };
     }
   } catch (error) {
-    throw new Error(`Erreur lors de la création: ${error.message}`);
+    return { success: false, error: error.message };
   }
 }
 
 // Fonction principale
 async function main() {
   console.log('═══════════════════════════════════════════════════════');
-  console.log('   Création d\'un événement');
+  console.log('   Création automatique d\'événements prédéfinis');
   console.log('═══════════════════════════════════════════════════════\n');
 
   try {
@@ -149,74 +165,48 @@ async function main() {
     // Se connecter pour obtenir un token
     const token = await login(email, password);
 
-    // Demander les informations de l'événement
-    console.log('\n📝 Informations de l\'événement:');
+    // Afficher les événements à créer
+    console.log(`\n📋 ${PREDEFINED_EVENTS.length} événements prédéfinis seront créés:`);
     console.log('─────────────────────────────────────────────────────');
-    
-    // Champs requis
-    const title = await askQuestion('Titre (requis): ');
-    if (!title) {
-      console.error('❌ Erreur: Le titre est requis');
-      process.exit(1);
-    }
-
-    const startAt = await askQuestion('Date de début au format ISO (requis, ex: 2024-12-25T10:00:00): ');
-    if (!startAt) {
-      console.error('❌ Erreur: La date de début est requise');
-      process.exit(1);
-    }
-
-    const createdBy = await askQuestion('Email du créateur (requis): ');
-    if (!createdBy) {
-      console.error('❌ Erreur: L\'email du créateur est requis');
-      process.exit(1);
-    }
-
-    // Champs optionnels
-    console.log('\n📝 Champs optionnels (appuyez sur Entrée pour ignorer):');
-    const description = await askQuestion('Description: ');
-    const endAt = await askQuestion('Date de fin au format ISO (ex: 2024-12-25T18:00:00): ');
-    const location = await askQuestion('Lieu: ');
-    const category = await askQuestion('Catégorie: ');
-    const imageUrl = await askQuestion('URL de l\'image: ');
-
-    // Préparer les données de l'événement
-    const now = new Date().toISOString();
-    const eventData = {
-      title,
-      startAt,
-      created_by: createdBy,
-      created_at: now,
-      updated_at: now,
-    };
-
-    // Ajouter les champs optionnels s'ils sont fournis
-    if (description) eventData.description = description;
-    if (endAt) eventData.endAt = endAt;
-    if (location) eventData.location = location;
-    if (category) eventData.category = category;
-    if (imageUrl) eventData.image_url = imageUrl;
-
-    // Afficher un résumé
-    console.log('\n📋 Résumé de l\'événement:');
-    console.log('─────────────────────────────────────────────────────');
-    console.log(`Titre: ${title}`);
-    console.log(`Date de début: ${startAt}`);
-    if (endAt) console.log(`Date de fin: ${endAt}`);
-    if (location) console.log(`Lieu: ${location}`);
-    if (category) console.log(`Catégorie: ${category}`);
-    if (description) console.log(`Description: ${description.substring(0, 50)}${description.length > 50 ? '...' : ''}`);
-    console.log(`Créé par: ${createdBy}`);
+    PREDEFINED_EVENTS.forEach((event, index) => {
+      console.log(`${index + 1}. ${event.title} - ${event.location} (${event.startAt})`);
+    });
 
     // Confirmer
-    const confirm = await askQuestion('\nCréer cet événement? (o/n): ');
+    const confirm = await askQuestion('\nCréer tous ces événements? (o/n): ');
     if (confirm.toLowerCase() !== 'o' && confirm.toLowerCase() !== 'oui' && confirm.toLowerCase() !== 'y' && confirm.toLowerCase() !== 'yes') {
       console.log('❌ Création annulée');
       process.exit(0);
     }
 
-    // Créer l'événement
-    await createEvent(eventData, token);
+    // Créer tous les événements
+    console.log('\n📅 Création des événements...\n');
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (let i = 0; i < PREDEFINED_EVENTS.length; i++) {
+      const eventData = PREDEFINED_EVENTS[i];
+      console.log(`[${i + 1}/${PREDEFINED_EVENTS.length}] Création de "${eventData.title}"...`);
+      
+      const result = await createEvent(eventData, token);
+      
+      if (result.success) {
+        console.log(`✅ "${eventData.title}" créé avec succès!`);
+        successCount++;
+      } else {
+        console.log(`❌ Erreur pour "${eventData.title}": ${result.error}`);
+        errorCount++;
+      }
+    }
+
+    // Résumé
+    console.log('\n═══════════════════════════════════════════════════════');
+    console.log('📊 Résumé:');
+    console.log(`   ✅ ${successCount} événement(s) créé(s) avec succès`);
+    if (errorCount > 0) {
+      console.log(`   ❌ ${errorCount} événement(s) en erreur`);
+    }
+    console.log('═══════════════════════════════════════════════════════\n');
 
   } catch (error) {
     console.error('\n❌ Erreur:', error.message);

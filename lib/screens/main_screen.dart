@@ -10,6 +10,7 @@ import 'map_content.dart';
 import 'home_content.dart';
 import 'infos_content.dart';
 import 'profile_content.dart';
+import 'test_notification_screen.dart';
 
 class MainPage extends StatefulWidget {
   const MainPage({super.key});
@@ -18,7 +19,7 @@ class MainPage extends StatefulWidget {
 }
 
 class _MainPageState extends State<MainPage> {
-  int _currentIndex = 2; // Page home par défaut (index 2)
+  int _currentIndex = 0;
   String userRole = 'Chargement...';
   String userName = '';
   bool loading = true;
@@ -221,6 +222,7 @@ class _MainPageState extends State<MainPage> {
         return const EventsContent();
       case 1:
         return const MapContent();
+        // return const TestNotificationScreen();
       case 2:
         return HomeContent(
           userName: userName,

@@ -10,10 +10,18 @@ import 'dart:convert';
 import 'screens/register_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/main_screen.dart';
+import 'not_service.dart';
+import 'screens/test_notification_screen.dart';
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // ✅ On attend bien l'initialisation des notifications avant de lancer l'app
+  await NotService.initNotifications();
+
+  // ✅ Initialisation du service de connectivité
   await ConnectivityService.initialize();
+  
   runApp(const App());
 }
 
@@ -217,6 +225,7 @@ class _AppState extends State<App> {
               '/register': (_) => const RegisterPage(),
               '/login': (_) => const LoginPage(),
               '/main': (_) => const MainPage(),
+              '/testNotif': (_) => const TestNotificationScreen(),
             },
           );
         },

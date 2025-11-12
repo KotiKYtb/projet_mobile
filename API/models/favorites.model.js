@@ -12,7 +12,14 @@ module.exports = function(sequelize, Sequelize) {
       }
     },
     {
-      timestamps: true
+      timestamps: true,
+      indexes: [
+        {
+          unique: true,
+          fields: ['user_id', 'event_id'],
+          name: 'favorites_user_event_unique'
+        }
+      ]
     }
   );
   return Favorite;

@@ -22,7 +22,7 @@ class ApiClient {
   
   // Pour appareil physique (remplacez par votre IP locale) :
   // Essayez d'abord avec l'IP de votre réseau Wi-Fi (pas le hotspot):
-  static const String baseUrl = 'http://172.16.80.151:8080';
+  static const String baseUrl = 'http://172.16.80.109:8080';
   
   // Getter pour accéder à baseUrl depuis l'extérieur
   static String get apiBaseUrl => baseUrl;
@@ -198,6 +198,51 @@ class ApiClient {
       Uri.parse('$baseUrl/api/events/$eventId'),
       headers: {
         'Accept': 'application/json',
+      },
+    ).timeout(timeout);
+  }
+
+  // Ajouter un événement aux favoris (nécessite un token)
+  static Future<http.Response> addFavorite({
+    required String token,
+    required int eventId,
+  }) {
+    return http.post(
+      Uri.parse('$baseUrl/api/favorites'),
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'x-access-token': token,
+      },
+      body: jsonEncode({
+        'event_id': eventId,
+      }),
+    ).timeout(timeout);
+  }
+
+  // Retirer un événement des favoris (nécessite un token)
+  static Future<http.Response> removeFavorite({
+    required String token,
+    required int eventId,
+  }) {
+    return http.delete(
+      Uri.parse('$baseUrl/api/favorites/$eventId'),
+      headers: {
+        'Accept': 'application/json',
+        'x-access-token': token,
+      },
+    ).timeout(timeout);
+  }
+
+  // Récupérer les favoris de l'utilisateur (nécessite un token)
+  static Future<http.Response> getFavorites({
+    required String token,
+  }) {
+    return http.get(
+      Uri.parse('$baseUrl/api/favorites'),
+      headers: {
+        'Accept': 'application/json',
+        'x-access-token': token,
       },
     ).timeout(timeout);
   }

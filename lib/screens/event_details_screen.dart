@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:flutter_osm_plugin/flutter_osm_plugin.dart';
 import 'events_content.dart';
 import '../utils/app_colors.dart';
+import '../api_client.dart';
+import '../token_storage.dart';
 
 class EventDetailsScreen extends StatefulWidget {
   final EventItem event;
@@ -19,6 +25,10 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _mapKey = GlobalKey();
   double _appBarOpacity = 0.0;
+  bool _notificationsEnabled = false;
+  bool _isFavorite = false;
+  late MapController _mapController;
+  bool _isMapReady = false;
 
   // TODO: Replace with actual coordinates from the event
   static const double _defaultLat = 47.4739884;
@@ -27,15 +37,292 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
   @override
   void initState() {
     super.initState();
+    _mapController = MapController(
+      initPosition: GeoPoint(latitude: _defaultLat, longitude: _defaultLng),
+    );
     _scrollController.addListener(_onScroll);
     // Initialiser l'opacité au démarrage
     _appBarOpacity = 0.0;
+    _loadNotificationPreference();
+    _loadFavoritePreference();
+  }
+
+  Future<void> _loadNotificationPreference() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final key = 'event_notification_${widget.event.eventId}';
+      setState(() {
+        _notificationsEnabled = prefs.getBool(key) ?? false;
+      });
+    } catch (e) {
+      print('Erreur lors du chargement de la préférence de notification: $e');
+    }
+  }
+
+  Future<void> _loadFavoritePreference() async {
+    try {
+      final token = await TokenStorage.read();
+      if (token != null) {
+        // Charger depuis l'API
+        final response = await ApiClient.getFavorites(token: token);
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body) as Map<String, dynamic>;
+          final favorites = data['favorites'] as List<dynamic>? ?? [];
+          final isFavorite = favorites.any((f) => 
+            (f as Map<String, dynamic>)['event_id'] == widget.event.eventId
+          );
+          setState(() {
+            _isFavorite = isFavorite;
+          });
+          
+          // Sauvegarder aussi localement pour le cache
+          final prefs = await SharedPreferences.getInstance();
+          final key = 'event_favorite_${widget.event.eventId}';
+          await prefs.setBool(key, isFavorite);
+          return;
+        }
+      }
+      
+      // Fallback: charger depuis le cache local
+      final prefs = await SharedPreferences.getInstance();
+      final key = 'event_favorite_${widget.event.eventId}';
+      setState(() {
+        _isFavorite = prefs.getBool(key) ?? false;
+      });
+    } catch (e) {
+      print('Erreur lors du chargement de la préférence de favori: $e');
+      // Fallback: charger depuis le cache local
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final key = 'event_favorite_${widget.event.eventId}';
+        setState(() {
+          _isFavorite = prefs.getBool(key) ?? false;
+        });
+      } catch (e2) {
+        print('Erreur lors du chargement du cache local: $e2');
+      }
+    }
+  }
+
+  Future<void> _toggleFavorite() async {
+    try {
+      final token = await TokenStorage.read();
+      if (token == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Vous devez être connecté pour ajouter aux favoris'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+        return;
+      }
+
+      final newValue = !_isFavorite;
+      http.Response response;
+
+      if (newValue) {
+        // Ajouter aux favoris
+        response = await ApiClient.addFavorite(
+          token: token,
+          eventId: widget.event.eventId,
+        );
+      } else {
+        // Retirer des favoris
+        response = await ApiClient.removeFavorite(
+          token: token,
+          eventId: widget.event.eventId,
+        );
+      }
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        setState(() {
+          _isFavorite = newValue;
+        });
+        
+        // Sauvegarder aussi localement pour le cache
+        final prefs = await SharedPreferences.getInstance();
+        final key = 'event_favorite_${widget.event.eventId}';
+        await prefs.setBool(key, newValue);
+        
+        // Afficher un message de confirmation en haut avec le design de l'app
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              duration: const Duration(seconds: 2),
+              backgroundColor: Colors.transparent,
+              behavior: SnackBarBehavior.floating,
+              margin: EdgeInsets.only(
+                top: 16,
+                left: 16,
+                right: 16,
+              ),
+              elevation: 0,
+              padding: EdgeInsets.zero,
+              content: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      AppColors.primaryButton.withOpacity(0.9),
+                      AppColors.secondaryBackground.withOpacity(0.8),
+                    ],
+                  ),
+                  border: Border.all(
+                    color: AppColors.primaryButton.withOpacity(0.3),
+                    width: 1,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.primaryButton.withOpacity(0.3),
+                      blurRadius: 12,
+                      spreadRadius: 0,
+                      offset: const Offset(0, 4),
+                    ),
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.2),
+                      blurRadius: 8,
+                      spreadRadius: 0,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                  Icon(
+                    newValue ? Icons.star : Icons.star_border,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        newValue 
+                          ? 'Événement ajouté aux favoris'
+                          : 'Événement retiré des favoris',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+      } else {
+        throw Exception('Erreur ${response.statusCode}: ${response.body}');
+      }
+    } catch (e) {
+      print('Erreur lors de la sauvegarde du favori: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur: ${e.toString()}'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _toggleNotifications(bool enabled) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final key = 'event_notification_${widget.event.eventId}';
+      await prefs.setBool(key, enabled);
+      setState(() {
+        _notificationsEnabled = enabled;
+      });
+      
+      // Afficher un message de confirmation en haut avec le design de l'app
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            duration: const Duration(seconds: 2),
+            backgroundColor: Colors.transparent,
+            behavior: SnackBarBehavior.floating,
+            margin: EdgeInsets.only(
+              top: 16,
+              left: 16,
+              right: 16,
+            ),
+            elevation: 0,
+            padding: EdgeInsets.zero,
+            content: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    AppColors.primaryButton.withOpacity(0.9),
+                    AppColors.secondaryBackground.withOpacity(0.8),
+                  ],
+                ),
+                border: Border.all(
+                  color: AppColors.primaryButton.withOpacity(0.3),
+                  width: 1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primaryButton.withOpacity(0.3),
+                    blurRadius: 12,
+                    spreadRadius: 0,
+                    offset: const Offset(0, 4),
+                  ),
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 8,
+                    spreadRadius: 0,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    enabled ? Icons.notifications_active : Icons.notifications_off,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      enabled 
+                        ? 'Notifications activées pour cet événement'
+                        : 'Notifications désactivées pour cet événement',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Erreur lors de la sauvegarde de la préférence de notification: $e');
+    }
   }
 
   @override
   void dispose() {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
+    _mapController.dispose();
     super.dispose();
   }
 
@@ -117,6 +404,74 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
               ),
             ),
             titleSpacing: 0,
+            actions: [
+              // Icône favori
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: InkWell(
+                  onTap: _toggleFavorite,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: _isFavorite 
+                        ? AppColors.primaryButton.withOpacity(0.2)
+                        : Colors.white.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: _isFavorite 
+                          ? AppColors.primaryButton
+                          : Colors.white.withOpacity(0.3),
+                        width: 1,
+                      ),
+                    ),
+                    child: Icon(
+                      _isFavorite 
+                        ? Icons.star 
+                        : Icons.star_border,
+                      color: _isFavorite 
+                        ? AppColors.primaryButton 
+                        : Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ),
+              // Icône notifications
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: InkWell(
+                  onTap: () => _toggleNotifications(!_notificationsEnabled),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: _notificationsEnabled 
+                        ? AppColors.primaryButton.withOpacity(0.2)
+                        : Colors.white.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: _notificationsEnabled 
+                          ? AppColors.primaryButton
+                          : Colors.white.withOpacity(0.3),
+                        width: 1,
+                      ),
+                    ),
+                    child: Icon(
+                      _notificationsEnabled 
+                        ? Icons.notifications_active 
+                        : Icons.notifications_off,
+                      color: _notificationsEnabled 
+                        ? AppColors.primaryButton 
+                        : Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ),
+            ],
             flexibleSpace: FlexibleSpaceBar(
               titlePadding: EdgeInsets.zero,
               centerTitle: false,
@@ -318,6 +673,10 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                           setState(() {
                             _isMapExpanded = !_isMapExpanded;
                           });
+                          // Mettre à jour le zoom de la carte
+                          if (_isMapReady && _mapController != null) {
+                            _mapController!.setZoom(zoomLevel: _isMapExpanded ? 15.0 : 13.0);
+                          }
                           // Attendre un peu pour que l'animation se termine avant de scroller
                           Future.delayed(const Duration(milliseconds: 350), () {
                             _scrollToMap();
@@ -346,8 +705,9 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                         color: AppColors.getTextPrimary(context),
                       ),
                     ),
+                    const SizedBox(height: 16),
                   ],
-                  const SizedBox(height: 24),
+
 
                   // Map
                   AnimatedContainer(
@@ -386,91 +746,74 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                         ),
                         child: Stack(
                         children: [
-                          // Map placeholder
-                          Container(
-                            width: double.infinity,
-                            height: double.infinity,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  AppColors.getMenuBackground(context),
-                                  AppColors.getPrimaryBackground(context),
-                                ],
+                          // Carte OSM
+                          OSMFlutter(
+                            controller: _mapController,
+                            onMapIsReady: (isReady) {
+                              if (mounted) {
+                                setState(() {
+                                  _isMapReady = true;
+                                });
+                              }
+                            },
+                            osmOption: OSMOption(
+                              zoomOption: ZoomOption(
+                                initZoom: _isMapExpanded ? 15 : 13,
+                                minZoomLevel: 3,
+                                maxZoomLevel: 19,
+                                stepZoom: 1.0,
                               ),
-                            ),
-                            child: Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.map,
-                                    size: _isMapExpanded ? 60 : 50,
-                                    color: AppColors.primaryButton,
-                                  ),
-                                  SizedBox(height: _isMapExpanded ? 12 : 8),
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                                    child: Text(
-                                      widget.event.place,
-                                      style: TextStyle(
-                                        fontSize: _isMapExpanded ? 18 : 16,
-                                        fontWeight: FontWeight.bold,
-                                        color: AppColors.getTextPrimary(context),
-                                      ),
-                                      textAlign: TextAlign.center,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
+                              staticPoints: [
+                                StaticPositionGeoPoint(
+                                  "event_location",
+                                  const MarkerIcon(
+                                    icon: Icon(
+                                      Icons.location_on,
+                                      color: Colors.red,
+                                      size: 48,
                                     ),
                                   ),
-                                  if (_isMapExpanded) ...[
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      '${_defaultLat.toStringAsFixed(4)}°N, ${_defaultLng.toStringAsFixed(4)}°W',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: AppColors.secondaryText,
-                                      ),
-                                      textAlign: TextAlign.center,
-                                    ),
-                                    const SizedBox(height: 12),
-                                    Container(
-                                      padding: const EdgeInsets.all(10),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.primaryButton.withOpacity(0.2),
-                                        borderRadius: BorderRadius.circular(8),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: AppColors.primaryButton.withOpacity(0.3),
-                                            blurRadius: 8,
-                                            spreadRadius: 0,
-                                            offset: const Offset(0, 2),
-                                          ),
-                                        ],
-                                      ),
-                                      child: Icon(
-                                        Icons.location_on,
-                                        color: AppColors.primaryButton,
-                                        size: 28,
-                                      ),
-                                    ),
-                                  ] else ...[
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      '${_defaultLat.toStringAsFixed(4)}°N, ${_defaultLng.toStringAsFixed(4)}°W',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: AppColors.secondaryText,
-                                      ),
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ],
-                                ],
+                                  [GeoPoint(latitude: _defaultLat, longitude: _defaultLng)],
+                                ),
+                              ],
+                              roadConfiguration: const RoadOption(
+                                roadColor: Colors.blueAccent,
                               ),
                             ),
                           ),
+                          // Overlay de chargement
+                          if (!_isMapReady)
+                            Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    AppColors.getMenuBackground(context),
+                                    AppColors.getPrimaryBackground(context),
+                                  ],
+                                ),
+                              ),
+                              child: Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    CircularProgressIndicator(
+                                      color: AppColors.primaryButton,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      'Chargement de la carte...',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: AppColors.getTextPrimary(context),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
                           Positioned(
                             right: 8,
                             bottom: 8,
@@ -492,6 +835,10 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                                   setState(() {
                                     _isMapExpanded = !_isMapExpanded;
                                   });
+                                  // Mettre à jour le zoom de la carte
+                                  if (_isMapReady) {
+                                    _mapController.setZoom(zoomLevel: _isMapExpanded ? 15.0 : 13.0);
+                                  }
                                   // Attendre un peu pour que l'animation se termine avant de scroller
                                   Future.delayed(const Duration(milliseconds: 350), () {
                                     _scrollToMap();

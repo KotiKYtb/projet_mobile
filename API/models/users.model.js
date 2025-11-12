@@ -26,17 +26,12 @@ module.exports = (sequelize, Sequelize) => {
     role: {
       type: Sequelize.STRING,
       allowNull: false
-    },
-    created_at: {
-      type: Sequelize.DATE,
-      allowNull: false
-    },
-    updated_at: {
-      type: Sequelize.DATE,
-      allowNull: false
     }
+    // created_at et updated_at sont gérés automatiquement par Sequelize avec timestamps: true
   }, {
-    timestamps: true
+    timestamps: true,
+    createdAt: 'created_at',
+    updatedAt: 'updated_at'
   });
   return User;
 };

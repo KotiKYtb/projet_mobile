@@ -36,21 +36,15 @@ module.exports = function(sequelize, Sequelize) {
         allowNull: true
       },
       created_by: {
-        type: Sequelize.STRING,
-        allowNull: false,
-        foreignKey: 'user_id'
-      },
-      created_at: {
-        type: Sequelize.DATE,
-        allowNull: false
-      },
-      updated_at: {
-        type: Sequelize.DATE,
+        type: Sequelize.INTEGER,
         allowNull: false
       }
+      // created_at et updated_at sont gérés automatiquement par Sequelize avec timestamps: true
     },
     {
-      timestamps: true
+      timestamps: true,
+      createdAt: 'created_at',
+      updatedAt: 'updated_at'
     }
   );
 

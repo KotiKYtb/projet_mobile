@@ -55,6 +55,7 @@ db.sequelize
 require('./routes/auth.routes')(app);
 require('./routes/user.routes')(app);
 require('./routes/event.routes')(app);
+require('./routes/favorite.routes')(app);
 
 // Note: Le serveur écoute via bin/www, pas ici
 // Si vous lancez directement app.js, décommentez les lignes ci-dessous:

@@ -62,6 +62,16 @@ db.favorite.belongsTo(db.event, { foreignKey: "event_id" });
 db.user.hasMany(db.favorite, { foreignKey: "user_id" });
 db.event.hasMany(db.favorite, { foreignKey: "event_id" });
 
+// Relation pour created_by dans events
+db.event.belongsTo(db.user, { 
+  foreignKey: "created_by",
+  as: "creator"
+});
+db.user.hasMany(db.event, { 
+  foreignKey: "created_by",
+  as: "createdEvents"
+});
+
 db.ROLES = ["user", "admin", "organisation"];
 
 module.exports = db;
