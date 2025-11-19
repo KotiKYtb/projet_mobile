@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "392262942802",
+    "project_id": "noctaapp-73916",
+    "storage_bucket": "noctaapp-73916.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:392262942802:android:a25a6ea0b78491ad095f8b",
+        "android_client_info": {
+          "package_name": "com.example.angers_mobile_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDmCJQmLMGwJYellDZ9_1wHX0hiwp35EhM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

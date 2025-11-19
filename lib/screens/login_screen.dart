@@ -5,8 +5,10 @@ import '../api_client.dart';
 import '../token_storage.dart';
 import '../services/connectivity_service.dart';
 import '../services/offline_auth.dart';
+import '../services/firebase_messaging_service.dart';
 import '../models/user_model.dart';
 import '../utils/app_colors.dart';
+import '../widgets/home_widget_service.dart';
 
 const webScreenSize = 600;
 
@@ -50,7 +52,6 @@ class _LoginPageState extends State<LoginPage> {
       setState(() {
         isOnline = online;
       });
-      // Pas de notification pour les changements de connectivité
     }
   }
 
@@ -63,10 +64,9 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _loadLastUser() async {
     try {
-      // Vérifier d'abord si la session est valide
       final sessionValid = await TokenStorage.isSessionValid();
       if (!sessionValid) {
-        print('❌ Session non valide, pas de dernier utilisateur');
+        print(' Session non valide, pas de dernier utilisateur');
         return;
       }
       
@@ -75,7 +75,7 @@ class _LoginPageState extends State<LoginPage> {
         lastUser = user;
         if (user != null) {
           emailCtrl.text = user.email;
-          print('✅ Dernier utilisateur chargé: ${user.email}');
+          print(' Dernier utilisateur chargé: ${user.email}');
         }
       });
     } catch (e) {
@@ -94,10 +94,13 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  /// Gère la connexion en mode online
+  /// Teste d'abord la connexion à l'API avant de tenter l'authentification
+  /// Sauvegarde les tokens et données utilisateur en cas de succès
   Future<void> _loginOnline() async {
     try {
-      // Tester d'abord la connexion à l'API
-      print('🔍 Test de connexion à l\'API...');
+      print(' Test de connexion à l\'API...');
+      /// Vérification préalable de la connectivité pour éviter les erreurs inutiles
       final canConnect = await ApiClient.testConnection();
       if (!canConnect) {
         setState(() { 
@@ -113,7 +116,7 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
       
-      print('✅ Connexion à l\'API réussie, tentative de login...');
+      print(' Connexion à l\'API réussie, tentative de login...');
       final resp = await ApiClient.signin(
         email: emailCtrl.text.trim(),
         password: passCtrl.text,
@@ -126,7 +129,6 @@ class _LoginPageState extends State<LoginPage> {
         if (token == null) { setState(() => error = 'Token manquant'); return; }
         await TokenStorage.save(token);
         
-        // Sauvegarder le refresh token
         final refreshToken = data['refreshToken'] as String?;
         if (refreshToken != null) {
           await TokenStorage.saveRefreshToken(refreshToken);
@@ -137,7 +139,6 @@ class _LoginPageState extends State<LoginPage> {
             .toList();
         await TokenStorage.saveRoles(roles);
         
-        // Stocker les données utilisateur
         final email = data['email'] ?? emailCtrl.text.trim();
         await TokenStorage.saveUserData({
           'name': data['name'] ?? email.split('@')[0],
@@ -146,8 +147,16 @@ class _LoginPageState extends State<LoginPage> {
           'email': email,
         });
         
-        // Marquer la session comme valide
         await TokenStorage.setSessionValid(true);
+        
+        // Réenregistrer le token FCM maintenant que l'utilisateur est connecté
+        FirebaseMessagingService.reRegisterToken().catchError((e) {
+          print(' Erreur lors du réenregistrement du token FCM: $e');
+        });
+        
+        HomeWidgetService.updateWidgetWithFavoriteEvents().catchError((e) {
+          print(' Erreur mise à jour widget après login: $e');
+        });
         
         if (!mounted) return;
         Navigator.pushReplacementNamed(context, '/main');
@@ -169,7 +178,7 @@ class _LoginPageState extends State<LoginPage> {
                 '• Votre appareil peut accéder à cette adresse\n\n'
                 'Si vous utilisez un émulateur, essayez: http://10.0.2.2:8080';
       });
-      print('❌ Timeout lors de la connexion: $e');
+      print(' Timeout lors de la connexion: $e');
     } catch (e) {
       setState(() { 
         loading = false; 
@@ -177,42 +186,47 @@ class _LoginPageState extends State<LoginPage> {
                 'URL utilisée: ${ApiClient.apiBaseUrl}\n\n'
                 'Assurez-vous que l\'API est démarrée.';
       });
-      print('❌ Erreur de connexion: $e');
+      print(' Erreur de connexion: $e');
     }
   }
 
+  /// Gère la connexion en mode offline
+  /// Utilise uniquement le cache local, ne nécessite pas de mot de passe
+  /// Permet de continuer à utiliser l'app sans connexion réseau
+  /// Seul le dernier utilisateur connecté peut se connecter en offline
   Future<void> _loginOffline() async {
     try {
-      print('🔍 Tentative de connexion offline...');
+      print(' Tentative de connexion offline...');
       print('📧 Email: ${emailCtrl.text.trim()}');
       
-      // En mode offline, on n'a pas besoin du mot de passe
-      // On vérifie seulement si l'utilisateur était connecté précédemment
+      /// Authentification offline basée uniquement sur l'email et le cache local
       final user = await OfflineAuth.authenticateOffline(
         emailCtrl.text.trim(),
-        '', // Pas de mot de passe nécessaire en mode offline
+        '',
       );
       
       setState(() { loading = false; });
       
       if (user != null) {
-        print('✅ Authentification offline réussie pour: ${user.email}');
-        // Simuler la connexion offline
+        print(' Authentification offline réussie pour: ${user.email}');
         await OfflineAuth.simulateOfflineLogin(user);
         
-        // Marquer la session comme valide
         await TokenStorage.setSessionValid(true);
+        
+        HomeWidgetService.updateWidgetWithFavoriteEvents().catchError((e) {
+          print(' Erreur mise à jour widget après login offline: $e');
+        });
         
         if (!mounted) return;
         Navigator.pushReplacementNamed(context, '/main');
     } else {
-        print('❌ Échec de l\'authentification offline');
+        print(' Échec de l\'authentification offline');
         setState(() { 
           error = 'Utilisateur non trouvé en mode offline. Seul le dernier utilisateur connecté peut se connecter hors ligne.';
         });
       }
     } catch (e) {
-      print('❌ Erreur lors de la connexion offline: $e');
+      print(' Erreur lors de la connexion offline: $e');
       setState(() { 
         loading = false; 
         error = 'Erreur de connexion offline: $e';
@@ -227,7 +241,6 @@ class _LoginPageState extends State<LoginPage> {
       backgroundColor: AppColors.getPrimaryBackground(context),
       body: SafeArea(
         child: Container(
-          // Adjusts padding based on screen size.
           padding: MediaQuery.of(context).size.width > webScreenSize
               ? EdgeInsets.symmetric(
                   horizontal: MediaQuery.of(context).size.width / 3)
@@ -242,7 +255,7 @@ class _LoginPageState extends State<LoginPage> {
                   flex: 1,
                   child: Container(),
                 ),
-                // Logo ou branding (vous pouvez ajouter votre logo ici)
+
                 SizedBox(
                   height: 120,
                   child: const Icon(
@@ -252,8 +265,7 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 ),
                 const SizedBox(height: 32),
-                
-                // Champ Email avec style du template
+
                 Container(
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(4),
@@ -302,8 +314,7 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                
-                // Champ Password avec style du template
+
                 Container(
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(4),
@@ -368,8 +379,7 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                
-                // Message d'erreur
+
                 if (error != null)
                   Container(
                     width: double.infinity,
@@ -388,8 +398,7 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                   ),
-                
-                // Bouton de connexion avec style du template
+
                 InkWell(
                   onTap: (loading || (!isOnline && lastUser == null)) ? null : _login,
                   child: Container(
@@ -434,8 +443,7 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                
-                // Lien vers l'inscription (juste sous les inputs)
+
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [

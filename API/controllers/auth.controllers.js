@@ -10,6 +10,7 @@ exports.signup = (req, res) => {
   if (!email || !password) {
     return res.status(400).send({ message: "email et password requis" });
   }
+  // Hashage du mot de passe avec bcrypt (8 rounds de salage)
   User.create({
     email: email,
     password: bcrypt.hashSync(password, 8),
@@ -31,6 +32,7 @@ exports.signin = (req, res) => {
       if (!user) {
         return res.status(404).send({ message: "Utilisateur non trouvé." });
       }
+      // Vérification du mot de passe avec bcrypt
       var passwordIsValid = bcrypt.compareSync(
         req.body.password,
         user.password
@@ -41,14 +43,20 @@ exports.signin = (req, res) => {
           message: "Mot de passe incorrect!"
         });
       }
-      // Access token (24 heures)
+      // Génération d'un token d'accès valide 24h (86400 secondes)
       var accessToken = jwt.sign({ id: user.user_id, email: user.email }, config.secret, {
-        expiresIn: 86400 // 24 heures
+        expiresIn: 86400
       });
+      console.log("=== ACCESS TOKEN ===");
+      console.log(accessToken);
+      // Décoder le token pour afficher son contenu
+      const decodedToken = jwt.decode(accessToken);
+      console.log("=== CONTENU DU TOKEN (DECODE) ===");
+      console.log(JSON.stringify(decodedToken, null, 2));
 
-      // Refresh token (long terme - 7 jours)
+      // Génération d'un refresh token valide 7 jours (604800 secondes)
       var refreshToken = jwt.sign({ id: user.user_id, type: 'refresh' }, config.secret, {
-        expiresIn: 604800 // 7 jours
+        expiresIn: 604800
       });
 
       res.status(200).send({
@@ -67,6 +75,7 @@ exports.signin = (req, res) => {
     });
 };
 
+// Permet de renouveler un access token expiré en utilisant un refresh token valide
 exports.refreshToken = (req, res) => {
   const { refreshToken } = req.body;
   
@@ -75,18 +84,18 @@ exports.refreshToken = (req, res) => {
   }
 
   try {
-    // Vérifier le refresh token
     const decoded = jwt.verify(refreshToken, config.secret);
     
+    // Vérifie que le token est bien un refresh token et non un access token
     if (decoded.type !== 'refresh') {
       return res.status(401).send({ message: "Token invalide" });
     }
 
-    // Générer un nouveau access token
+    // Génère un nouvel access token avec les informations de l'utilisateur
     const newAccessToken = jwt.sign(
       { id: decoded.id, email: decoded.email }, 
       config.secret, 
-      { expiresIn: 86400 } // 24 heures
+      { expiresIn: 86400 }
     );
 
     res.status(200).send({

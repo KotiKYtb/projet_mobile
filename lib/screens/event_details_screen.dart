@@ -1,12 +1,79 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter_osm_plugin/flutter_osm_plugin.dart';
 import 'events_content.dart';
 import '../utils/app_colors.dart';
 import '../api_client.dart';
+import '../services/map_service.dart';
+import '../services/sync_service.dart';
+import '../services/local_database.dart';
+import '../services/connectivity_service.dart';
+import '../models/user_model.dart';
 import '../token_storage.dart';
+import '../widgets/home_widget_service.dart';
+
+/// Widget qui affiche une image depuis une URL réseau ou une data URL (base64)
+class FlexibleImage extends StatelessWidget {
+  final String imageUrl;
+  final BoxFit fit;
+  final Widget Function(BuildContext, Object, StackTrace?)? errorBuilder;
+  final Widget Function(BuildContext, Widget, ImageChunkEvent?)? loadingBuilder;
+
+  const FlexibleImage({
+    super.key,
+    required this.imageUrl,
+    this.fit = BoxFit.cover,
+    this.errorBuilder,
+    this.loadingBuilder,
+  });
+
+  bool get isDataUrl => imageUrl.startsWith('data:image');
+
+  Uint8List? _decodeBase64() {
+    if (!isDataUrl) return null;
+    try {
+      // Format: data:image/jpeg;base64,<base64_string>
+      final base64String = imageUrl.split(',')[1];
+      return base64Decode(base64String);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (isDataUrl) {
+      final bytes = _decodeBase64();
+      if (bytes != null) {
+        return Image.memory(
+          bytes,
+          fit: fit,
+          errorBuilder: errorBuilder,
+        );
+      } else {
+        // Si le décodage échoue, afficher l'erreur
+        if (errorBuilder != null) {
+          return errorBuilder!(context, Exception('Invalid base64 image'), null);
+        }
+        return Container(
+          color: Colors.grey[300],
+          child: const Center(child: Icon(Icons.error)),
+        );
+      }
+    } else {
+      return Image.network(
+        imageUrl,
+        fit: fit,
+        errorBuilder: errorBuilder,
+        loadingBuilder: loadingBuilder,
+      );
+    }
+  }
+}
 
 class EventDetailsScreen extends StatefulWidget {
   final EventItem event;
@@ -27,24 +94,245 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
   double _appBarOpacity = 0.0;
   bool _notificationsEnabled = false;
   bool _isFavorite = false;
-  late MapController _mapController;
+  MapController? _mapController;
   bool _isMapReady = false;
+  bool _isInteractingWithMap = false; // Pour suivre si on interagit avec la carte
+  String? _organizerProfilePictureUrl; // URL de l'image de profil de l'organisateur
+  Uint8List? _organizerProfilePictureBytes; // Bytes de l'image de profil
+  List<StaticPositionGeoPoint> _pins = []; // Pins avec image de profil
 
-  // TODO: Replace with actual coordinates from the event
   static const double _defaultLat = 47.4739884;
   static const double _defaultLng = -0.5515588;
+
+  /// Récupère l'image de profil de l'organisateur de l'événement
+  Future<void> _loadOrganizerProfilePicture() async {
+    try {
+      if (widget.event.createdBy == null || widget.event.createdBy!.isEmpty) {
+        // Pas d'organisateur, utiliser l'icône par défaut
+        _pins = await _buildEventPin();
+        if (mounted) setState(() {});
+        return;
+      }
+      
+      final createdById = int.tryParse(widget.event.createdBy!.trim());
+      if (createdById == null) {
+        // ID invalide, utiliser l'icône par défaut
+        _pins = await _buildEventPin();
+        if (mounted) setState(() {});
+        return;
+      }
+      
+      // Essayer d'abord depuis le cache local
+      var user = await LocalDatabase.getUserById(createdById);
+      
+      // Si pas dans le cache OU si l'utilisateur n'a pas d'image de profil, récupérer depuis l'API
+      final needsUpdate = user == null || user.profilePicture == null || user.profilePicture!.isEmpty;
+      if (needsUpdate) {
+        final isOnline = await ConnectivityService.checkConnectivity();
+        if (isOnline) {
+          try {
+            // Récupérer tous les utilisateurs depuis l'API publique pour avoir les organisateurs
+            final response = await ApiClient.getAllUsersPublic();
+            if (response.statusCode == 200) {
+              final usersData = jsonDecode(response.body) as List<dynamic>;
+              for (var userData in usersData) {
+                final userMap = userData as Map<String, dynamic>;
+                final userId = userMap['user_id'] as int? ?? userMap['id'] as int?;
+                if (userId == createdById) {
+                  final userFromApi = UserModel.fromApi(userMap);
+                  await LocalDatabase.insertOrUpdateUser(userFromApi);
+                  user = userFromApi;
+                  break;
+                }
+              }
+              // Si toujours pas trouvé, réessayer depuis le cache
+              if (user == null) {
+                user = await LocalDatabase.getUserById(createdById);
+              }
+            }
+          } catch (e) {
+            print('Erreur lors de la récupération depuis l\'API pour l\'organisateur $createdById: $e');
+          }
+        }
+      }
+      
+      if (user != null && user.profilePicture != null && user.profilePicture!.isNotEmpty) {
+        _organizerProfilePictureUrl = user.profilePicture;
+        
+        // Charger l'image et la convertir en bytes
+        try {
+          final imageUrl = user.profilePicture!;
+          final cleanImageUrl = ApiClient.cleanUrl(imageUrl);
+          final response = await http.get(Uri.parse(cleanImageUrl));
+          if (response.statusCode == 200) {
+            _organizerProfilePictureBytes = response.bodyBytes;
+          }
+        } catch (e) {
+          print('Erreur lors du chargement de l\'image pour l\'organisateur $createdById: $e');
+        }
+      }
+      
+      // Construire les pins avec l'image de profil
+      _pins = await _buildEventPin();
+      
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (e) {
+      print('Erreur lors du chargement de l\'image de profil: $e');
+      // En cas d'erreur, utiliser l'icône par défaut
+      _pins = await _buildEventPin();
+      if (mounted) setState(() {});
+    }
+  }
+
+  Future<List<StaticPositionGeoPoint>> _buildEventPin() async {
+    final pins = <StaticPositionGeoPoint>[];
+    
+    // Utiliser les coordonnées GPS de l'événement si disponibles
+    if (widget.event.latitude == null || widget.event.longitude == null) {
+      return pins;
+    }
+    
+    // Créer l'icône du pin : utiliser l'image de profil si disponible
+    Widget? pinIconWidget;
+    Icon? pinIcon;
+    
+    if (_organizerProfilePictureBytes != null && _organizerProfilePictureBytes!.isNotEmpty) {
+      // Utiliser l'image de profil de l'organisateur avec Image.memory
+      pinIconWidget = Container(
+        width: 72,
+        height: 72,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: Colors.red,
+            width: 3,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.3),
+              blurRadius: 8,
+              spreadRadius: 2,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: ClipOval(
+          child: Image.memory(
+            _organizerProfilePictureBytes!,
+            width: 72,
+            height: 72,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return Icon(
+                Icons.location_on,
+                color: Colors.red,
+                size: 72,
+              );
+            },
+          ),
+        ),
+      );
+    } else if (_organizerProfilePictureUrl != null && _organizerProfilePictureUrl!.isNotEmpty) {
+      // Si on a l'URL mais pas les bytes, utiliser Image.network
+      pinIconWidget = Container(
+        width: 72,
+        height: 72,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: Colors.red,
+            width: 3,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.3),
+              blurRadius: 8,
+              spreadRadius: 2,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: ClipOval(
+          child: Image.network(
+            _organizerProfilePictureUrl!,
+            width: 72,
+            height: 72,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return Icon(
+                Icons.location_on,
+                color: Colors.red,
+                size: 72,
+              );
+            },
+            loadingBuilder: (context, child, loadingProgress) {
+              if (loadingProgress == null) return child;
+              return Center(
+                child: CircularProgressIndicator(
+                  value: loadingProgress.expectedTotalBytes != null
+                      ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                      : null,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.red),
+                ),
+              );
+            },
+          ),
+        ),
+      );
+    } else {
+      // Icône par défaut si pas d'image de profil
+      pinIcon = Icon(
+        Icons.location_on,
+        color: Colors.red,
+        size: 72,
+      );
+    }
+    
+    // Créer le MarkerIcon avec iconWidget si disponible, sinon utiliser icon
+    final MarkerIcon markerIcon = pinIconWidget != null
+        ? MarkerIcon(
+            iconWidget: pinIconWidget,
+          )
+        : MarkerIcon(
+            icon: pinIcon ?? Icon(
+              Icons.location_on,
+              color: Colors.red,
+              size: 72,
+            ),
+          );
+    
+    pins.add(
+      StaticPositionGeoPoint(
+        "event_location",
+        markerIcon,
+        [GeoPoint(
+          latitude: widget.event.latitude!,
+          longitude: widget.event.longitude!,
+        )],
+      ),
+    );
+    
+    return pins;
+  }
 
   @override
   void initState() {
     super.initState();
-    _mapController = MapController(
-      initPosition: GeoPoint(latitude: _defaultLat, longitude: _defaultLng),
-    );
+
+    _mapController = MapService().getController();
+
+    if (MapService().isReady) {
+      _isMapReady = true;
+    }
+    
     _scrollController.addListener(_onScroll);
-    // Initialiser l'opacité au démarrage
+
     _appBarOpacity = 0.0;
     _loadNotificationPreference();
     _loadFavoritePreference();
+    _loadOrganizerProfilePicture();
   }
 
   Future<void> _loadNotificationPreference() async {
@@ -61,29 +349,25 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
 
   Future<void> _loadFavoritePreference() async {
     try {
-      final token = await TokenStorage.read();
-      if (token != null) {
-        // Charger depuis l'API
-        final response = await ApiClient.getFavorites(token: token);
-        if (response.statusCode == 200) {
-          final data = jsonDecode(response.body) as Map<String, dynamic>;
-          final favorites = data['favorites'] as List<dynamic>? ?? [];
-          final isFavorite = favorites.any((f) => 
-            (f as Map<String, dynamic>)['event_id'] == widget.event.eventId
-          );
-          setState(() {
-            _isFavorite = isFavorite;
-          });
-          
-          // Sauvegarder aussi localement pour le cache
-          final prefs = await SharedPreferences.getInstance();
-          final key = 'event_favorite_${widget.event.eventId}';
-          await prefs.setBool(key, isFavorite);
-          return;
-        }
+      // Utiliser SyncService qui gère automatiquement le cache offline
+      final userId = await SyncService.getCurrentUserId();
+      if (userId != null) {
+        final isFavorite = await SyncService.isFavorite(
+          userId: userId,
+          eventId: widget.event.eventId,
+        );
+        setState(() {
+          _isFavorite = isFavorite;
+        });
+        
+        // Garder aussi SharedPreferences pour compatibilité
+        final prefs = await SharedPreferences.getInstance();
+        final key = 'event_favorite_${widget.event.eventId}';
+        await prefs.setBool(key, isFavorite);
+        return;
       }
-      
-      // Fallback: charger depuis le cache local
+
+      // Fallback sur SharedPreferences si pas d'userId
       final prefs = await SharedPreferences.getInstance();
       final key = 'event_favorite_${widget.event.eventId}';
       setState(() {
@@ -91,7 +375,6 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
       });
     } catch (e) {
       print('Erreur lors du chargement de la préférence de favori: $e');
-      // Fallback: charger depuis le cache local
       try {
         final prefs = await SharedPreferences.getInstance();
         final key = 'event_favorite_${widget.event.eventId}';
@@ -123,13 +406,13 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
       http.Response response;
 
       if (newValue) {
-        // Ajouter aux favoris
+
         response = await ApiClient.addFavorite(
           token: token,
           eventId: widget.event.eventId,
         );
       } else {
-        // Retirer des favoris
+
         response = await ApiClient.removeFavorite(
           token: token,
           eventId: widget.event.eventId,
@@ -137,16 +420,26 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
       }
 
       if (response.statusCode == 200 || response.statusCode == 201) {
+        // Mettre à jour le cache local
+        final userId = await SyncService.getCurrentUserId();
+        if (userId != null) {
+          if (newValue) {
+            await LocalDatabase.insertOrUpdateFavorite(userId: userId, eventId: widget.event.eventId);
+          } else {
+            await LocalDatabase.deleteFavorite(userId: userId, eventId: widget.event.eventId);
+          }
+        }
+
         setState(() {
           _isFavorite = newValue;
         });
-        
-        // Sauvegarder aussi localement pour le cache
+
         final prefs = await SharedPreferences.getInstance();
         final key = 'event_favorite_${widget.event.eventId}';
         await prefs.setBool(key, newValue);
-        
-        // Afficher un message de confirmation en haut avec le design de l'app
+
+        HomeWidgetService.updateWidgetWithFavoriteEvents();
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -233,6 +526,31 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
     }
   }
 
+  Future<void> _openNavigationApp() async {
+    if (widget.event.latitude == null || widget.event.longitude == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Coordonnées GPS non disponibles')),
+      );
+      return;
+    }
+
+    final double lat = widget.event.latitude!;
+    final double lng = widget.event.longitude!;
+
+    // Utiliser le schéma geo: qui ouvrira le choix Android pour sélectionner l'application GPS
+    final geoUrl = Uri.parse('geo:$lat,$lng?q=$lat,$lng');
+    
+    try {
+      await launchUrl(geoUrl, mode: LaunchMode.externalApplication);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Impossible d\'ouvrir l\'application de navigation')),
+        );
+      }
+    }
+  }
+
   Future<void> _toggleNotifications(bool enabled) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -241,8 +559,7 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
       setState(() {
         _notificationsEnabled = enabled;
       });
-      
-      // Afficher un message de confirmation en haut avec le design de l'app
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -322,15 +639,16 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
   void dispose() {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
-    _mapController.dispose();
+
+
+    
     super.dispose();
   }
 
   void _onScroll() {
     if (!_scrollController.hasClients) return;
-    
-    // Calculer l'opacité de l'overlay sombre basé sur la position du scroll
-    // Plus on scroll, plus l'image devient sombre
+
+
     final expandedHeight = 200.0;
     final currentScroll = _scrollController.offset;
     final opacity = (currentScroll / expandedHeight).clamp(0.0, 1.0);
@@ -347,7 +665,7 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
         context,
         duration: const Duration(milliseconds: 500),
         curve: Curves.easeInOut,
-        alignment: 0.1, // Afficher la carte un peu en haut de l'écran
+        alignment: 0.1,
       );
     }
   }
@@ -356,11 +674,21 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.getPrimaryBackground(context),
-      body: CustomScrollView(
-        controller: _scrollController,
-        physics: const AlwaysScrollableScrollPhysics(),
+      body: NotificationListener<ScrollNotification>(
+        onNotification: (notification) {
+          // Bloquer le scroll si on interagit avec la carte
+          if (_isInteractingWithMap && notification is ScrollUpdateNotification) {
+            return true; // Consommer la notification pour empêcher le scroll
+          }
+          return false;
+        },
+        child: CustomScrollView(
+          controller: _scrollController,
+          physics: _isInteractingWithMap 
+              ? const NeverScrollableScrollPhysics() 
+              : const AlwaysScrollableScrollPhysics(),
         slivers: [
-          // App bar with hero animation
+
           SliverAppBar(
             expandedHeight: 200.0,
             floating: false,
@@ -405,7 +733,7 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
             ),
             titleSpacing: 0,
             actions: [
-              // Icône favori
+
               Padding(
                 padding: const EdgeInsets.all(8.0),
                 child: InkWell(
@@ -438,7 +766,7 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                   ),
                 ),
               ),
-              // Icône notifications
+
               Padding(
                 padding: const EdgeInsets.all(8.0),
                 child: InkWell(
@@ -471,12 +799,37 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                   ),
                 ),
               ),
+
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: InkWell(
+                  onTap: _openNavigationApp,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.3),
+                        width: 1,
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.gps_fixed,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ),
             ],
             flexibleSpace: FlexibleSpaceBar(
               titlePadding: EdgeInsets.zero,
               centerTitle: false,
               title: Padding(
-                padding: const EdgeInsets.only(bottom: 16.0),
+                padding: const EdgeInsets.only(bottom: 16.0, left: 16.0, right: 16.0),
                 child: Align(
                   alignment: Alignment.bottomCenter,
                   child: Text(
@@ -484,20 +837,22 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
-                      fontSize: 40,
+                      fontSize: 25,
                     ),
-                    overflow: TextOverflow.ellipsis,
+                    maxLines: 2,
+                    overflow: TextOverflow.visible,
                     textAlign: TextAlign.center,
+                    softWrap: true,
                   ),
                 ),
               ),
                     background: Stack(
                       fit: StackFit.expand,
                       children: [
-                        // Image de fond
+
                         widget.event.imageUrl != null && widget.event.imageUrl!.isNotEmpty
-                            ? Image.network(
-                                widget.event.imageUrl!,
+                            ? FlexibleImage(
+                                imageUrl: widget.event.imageUrl!,
                                 fit: BoxFit.cover,
                                 errorBuilder: (context, error, stackTrace) {
                                   return Container(
@@ -562,25 +917,25 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                                   ),
                                 ),
                               ),
-                        // Overlay sombre par défaut (opacité de base)
+
                         AnimatedContainer(
                           duration: const Duration(milliseconds: 100),
                           color: Colors.black.withOpacity(0.4 + (_appBarOpacity * 0.4)),
-                          // Opacité de base: 0.4 (40% sombre)
-                          // Opacité maximale lors du scroll: 0.8 (80% sombre)
+
+
                         ),
                       ],
                     ),
             ),
           ),
-          // Event details
+
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 100.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Date and time
+
                   Card(
                     color: AppColors.getCardBackground(context),
                     elevation: 0,
@@ -626,8 +981,7 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  
-                  // Location
+
                   Card(
                     color: AppColors.getCardBackground(context),
                     elevation: 0,
@@ -673,11 +1027,11 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                           setState(() {
                             _isMapExpanded = !_isMapExpanded;
                           });
-                          // Mettre à jour le zoom de la carte
+
                           if (_isMapReady && _mapController != null) {
                             _mapController!.setZoom(zoomLevel: _isMapExpanded ? 15.0 : 13.0);
                           }
-                          // Attendre un peu pour que l'animation se termine avant de scroller
+
                           Future.delayed(const Duration(milliseconds: 350), () {
                             _scrollToMap();
                           });
@@ -687,7 +1041,6 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Description
                   if (widget.event.description != null && widget.event.description!.isNotEmpty) ...[
                     Text(
                       'Description',
@@ -708,8 +1061,6 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                     const SizedBox(height: 16),
                   ],
 
-
-                  // Map
                   AnimatedContainer(
                     key: _mapKey,
                     duration: const Duration(milliseconds: 300),
@@ -746,71 +1097,111 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                         ),
                         child: Stack(
                         children: [
-                          // Carte OSM
-                          OSMFlutter(
-                            controller: _mapController,
-                            onMapIsReady: (isReady) {
-                              if (mounted) {
-                                setState(() {
-                                  _isMapReady = true;
-                                });
-                              }
-                            },
-                            osmOption: OSMOption(
-                              zoomOption: ZoomOption(
-                                initZoom: _isMapExpanded ? 15 : 13,
-                                minZoomLevel: 3,
-                                maxZoomLevel: 19,
-                                stepZoom: 1.0,
-                              ),
-                              staticPoints: [
-                                StaticPositionGeoPoint(
-                                  "event_location",
-                                  const MarkerIcon(
-                                    icon: Icon(
-                                      Icons.location_on,
-                                      color: Colors.red,
-                                      size: 48,
-                                    ),
-                                  ),
-                                  [GeoPoint(latitude: _defaultLat, longitude: _defaultLng)],
-                                ),
-                              ],
-                              roadConfiguration: const RoadOption(
-                                roadColor: Colors.blueAccent,
-                              ),
-                            ),
-                          ),
-                          // Overlay de chargement
-                          if (!_isMapReady)
-                            Container(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: [
-                                    AppColors.getMenuBackground(context),
-                                    AppColors.getPrimaryBackground(context),
-                                  ],
-                                ),
-                              ),
-                              child: Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    CircularProgressIndicator(
-                                      color: AppColors.primaryButton,
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Text(
-                                      'Chargement de la carte...',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: AppColors.getTextPrimary(context),
+
+                          _mapController != null
+                              ? Listener(
+                                  // Détecter les gestes de pan (horizontaux et verticaux) pour désactiver le scroll
+                                  onPointerDown: (event) {
+                                    setState(() {
+                                      _isInteractingWithMap = true;
+                                    });
+                                  },
+                                  onPointerMove: (event) {
+                                    // Si mouvement détecté, garder l'interaction active et bloquer le scroll
+                                    if (event.delta.dx.abs() > 2 || event.delta.dy.abs() > 2) {
+                                      _scrollController.jumpTo(_scrollController.offset);
+                                    }
+                                  },
+                                  onPointerUp: (event) {
+                                    // Délai pour permettre les gestes de zoom
+                                    Future.delayed(const Duration(milliseconds: 150), () {
+                                      if (mounted) {
+                                        setState(() {
+                                          _isInteractingWithMap = false;
+                                        });
+                                      }
+                                    });
+                                  },
+                                  onPointerCancel: (event) {
+                                    setState(() {
+                                      _isInteractingWithMap = false;
+                                    });
+                                  },
+                                  // Ne pas bloquer les gestes, juste les détecter
+                                  behavior: HitTestBehavior.translucent,
+                                  child: OSMFlutter(
+                                    controller: _mapController!,
+                                    onMapIsReady: (isReady) {
+                                      if (mounted) {
+                                        MapService().setReady(true);
+                                        setState(() {
+                                          _isMapReady = true;
+                                        });
+                                        
+                                        // Centrer la carte sur l'événement si coordonnées disponibles
+                                        if (isReady && widget.event.latitude != null && widget.event.longitude != null) {
+                                          Future.delayed(const Duration(milliseconds: 500), () {
+                                            if (mounted && _mapController != null) {
+                                              _mapController!.goToLocation(
+                                                GeoPoint(
+                                                  latitude: widget.event.latitude!,
+                                                  longitude: widget.event.longitude!,
+                                                ),
+                                              );
+                                            }
+                                          });
+                                        }
+                                      }
+                                    },
+                                    osmOption: OSMOption(
+                                      zoomOption: ZoomOption(
+                                        initZoom: _isMapExpanded ? 15 : 13,
+                                        minZoomLevel: 3,
+                                        maxZoomLevel: 19,
+                                        stepZoom: 1.0,
+                                      ),
+                                      staticPoints: _pins,
+                                      roadConfiguration: const RoadOption(
+                                        roadColor: Colors.blueAccent,
                                       ),
                                     ),
-                                  ],
+                                  ),
+                                )
+                              : const Center(
+                                  child: CircularProgressIndicator(),
+                                ),
+
+                          if (!_isMapReady)
+                            IgnorePointer(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [
+                                      AppColors.getMenuBackground(context),
+                                      AppColors.getPrimaryBackground(context),
+                                    ],
+                                  ),
+                                ),
+                                child: Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      CircularProgressIndicator(
+                                        color: AppColors.primaryButton,
+                                      ),
+                                      const SizedBox(height: 16),
+                                      Text(
+                                        'Chargement de la carte...',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          color: AppColors.getTextPrimary(context),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
@@ -835,11 +1226,11 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                                   setState(() {
                                     _isMapExpanded = !_isMapExpanded;
                                   });
-                                  // Mettre à jour le zoom de la carte
-                                  if (_isMapReady) {
-                                    _mapController.setZoom(zoomLevel: _isMapExpanded ? 15.0 : 13.0);
+
+                                  if (_isMapReady && _mapController != null) {
+                                    _mapController!.setZoom(zoomLevel: _isMapExpanded ? 15.0 : 13.0);
                                   }
-                                  // Attendre un peu pour que l'animation se termine avant de scroller
+
                                   Future.delayed(const Duration(milliseconds: 350), () {
                                     _scrollToMap();
                                   });
@@ -861,6 +1252,7 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
             ),
           ),
         ],
+        ),
       ),
     );
   }

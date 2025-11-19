@@ -2,5 +2,12 @@
 <resources>
     <!-- Couleur pour le splash screen - correspond au dégradé bleu du splash Flutter -->
     <color name="splash_background">#1a237e</color>
+    
+    <!-- Couleurs de l'app pour le widget -->
+    <color name="widget_background">#252d3c</color>
+    <color name="widget_card_background">#2e3749</color>
+    <color name="widget_text_primary">#FFFFFF</color>
+    <color name="widget_text_secondary">#FFFFFF99</color>
+    <color name="widget_accent">#39aeea</color>
 </resources>
 

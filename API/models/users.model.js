@@ -26,8 +26,11 @@ module.exports = (sequelize, Sequelize) => {
     role: {
       type: Sequelize.STRING,
       allowNull: false
+    },
+    profile_picture: {
+      type: Sequelize.STRING,
+      allowNull: true
     }
-    // created_at et updated_at sont gérés automatiquement par Sequelize avec timestamps: true
   }, {
     timestamps: true,
     createdAt: 'created_at',

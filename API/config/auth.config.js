@@ -1,5 +1,3 @@
 module.exports = {
-secret: "pascal-lamy-secret-key"
+    secret: process.env.JWT_SECRET || "nocta-secret-key"
 };
-
-

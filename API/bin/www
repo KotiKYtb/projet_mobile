@@ -1,37 +1,20 @@
 #!/usr/bin/env node
 
-/**
- * Module dependencies.
- */
-
 var app = require('../app');
 var debug = require('debug')('jwt-auth-express-mysql:server');
 var http = require('http');
 var os = require('os');
 
-/**
- * Get port from environment and store in Express.
- */
-
 var port = normalizePort(process.env.PORT || '8080');
 app.set('port', port);
 
-/**
- * Create HTTP server.
- */
-
 var server = http.createServer(app);
-
-/**
- * Listen on provided port, on all network interfaces.
- */
 
 server.listen(port, '0.0.0.0', function() {
   var localIP = getLocalIPAddress();
   var interfaces = os.networkInterfaces();
   var allIPs = [];
   
-  // Collect all IPs for reference
   for (var devName in interfaces) {
     var iface = interfaces[devName];
     for (var i = 0; i < iface.length; i++) {
@@ -56,9 +39,8 @@ server.listen(port, '0.0.0.0', function() {
 server.on('error', onError);
 server.on('listening', onListening);
 
-/**
- * Get the local network IP address (prioritize Wi-Fi/Ethernet over virtual interfaces)
- */
+// Détecte l'adresse IP locale pour permettre l'accès depuis des appareils mobiles
+// sur le même réseau. Ignore les interfaces virtuelles (VirtualBox, VMware, etc.)
 function getLocalIPAddress() {
   var interfaces = os.networkInterfaces();
   var wifiIP = null;
@@ -66,7 +48,7 @@ function getLocalIPAddress() {
   
   for (var devName in interfaces) {
     var iface = interfaces[devName];
-    // Skip virtual interfaces (VMware, VirtualBox, etc.)
+    // Ignore les interfaces réseau virtuelles qui ne sont pas utiles pour l'accès mobile
     if (devName.includes('VirtualBox') || devName.includes('VMware') || 
         devName.includes('TAP') || devName.includes('vEthernet')) {
       continue;
@@ -74,16 +56,14 @@ function getLocalIPAddress() {
     
     for (var i = 0; i < iface.length; i++) {
       var alias = iface[i];
-      // Skip internal (i.e. 127.0.0.1) and non-IPv4 addresses
+      // Recherche uniquement les adresses IPv4 non-localhost et non-internes
       if (alias.family === 'IPv4' && alias.address !== '127.0.0.1' && !alias.internal) {
-        // Prioritize non-192.168.86.x addresses (usually hotspot)
+        // Priorise les adresses dans le réseau 192.168.86.x (réseau Google Nest)
         if (alias.address.startsWith('192.168.86.')) {
-          // This might be a hotspot, store as backup
           if (!wifiIP) {
             wifiIP = alias.address;
           }
         } else {
-          // This is likely a real network interface
           wifiIP = alias.address;
           break;
         }
@@ -92,42 +72,32 @@ function getLocalIPAddress() {
     }
   }
   
-  // If we found a good IP, return it
   if (wifiIP) {
     return wifiIP;
   }
   
-  // Otherwise return the first non-hotspot IP
   if (otherIPs.length > 0) {
     return otherIPs[0].ip;
   }
   
-  return 'localhost'; // Fallback if no network interface found
+  return 'localhost';
 }
 
-/**
- * Normalize a port into a number, string, or false.
- */
-
+// Normalise le port depuis une variable d'environnement ou une chaîne
+// Retourne le port en entier si valide, sinon retourne la valeur originale ou false
 function normalizePort(val) {
   var port = parseInt(val, 10);
 
   if (isNaN(port)) {
-    // named pipe
     return val;
   }
 
   if (port >= 0) {
-    // port number
     return port;
   }
 
   return false;
 }
-
-/**
- * Event listener for HTTP server "error" event.
- */
 
 function onError(error) {
   if (error.syscall !== 'listen') {
@@ -138,7 +108,6 @@ function onError(error) {
     ? 'Pipe ' + port
     : 'Port ' + port;
 
-  // handle specific listen errors with friendly messages
   switch (error.code) {
     case 'EACCES':
       console.error(bind + ' requires elevated privileges');
@@ -152,10 +121,6 @@ function onError(error) {
       throw error;
   }
 }
-
-/**
- * Event listener for HTTP server "listening" event.
- */
 
 function onListening() {
   var addr = server.address();

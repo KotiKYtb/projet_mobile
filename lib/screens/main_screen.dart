@@ -5,12 +5,15 @@ import '../services/sync_service.dart';
 import '../services/connectivity_service.dart';
 import '../services/local_database.dart';
 import '../utils/app_colors.dart';
+import '../api_client.dart';
 import 'events_content.dart';
 import 'map_content.dart';
 import 'home_content.dart';
 import 'infos_content.dart';
 import 'profile_content.dart';
-import 'test_notification_screen.dart';
+import 'orga/notification_screen.dart';
+import 'orga/event_editor.dart';
+import '../widgets/home_widget_service.dart';
 
 class MainPage extends StatefulWidget {
   const MainPage({super.key});
@@ -19,9 +22,10 @@ class MainPage extends StatefulWidget {
 }
 
 class _MainPageState extends State<MainPage> {
-  int _currentIndex = 0;
+  int _currentIndex = 2;
   String userRole = 'Chargement...';
   String userName = '';
+  int? organizerId; // ID de l'organisateur pour les fonctionnalités orga
   bool loading = true;
   bool isOnline = true;
 
@@ -29,7 +33,44 @@ class _MainPageState extends State<MainPage> {
   void initState() {
     super.initState();
     _loadUserInfo();
+    _checkInitialConnectivity();
     _setupConnectivityListener();
+
+    // Synchroniser toutes les données et mettre à jour le widget si en ligne
+    ConnectivityService.checkConnectivity().then((isOnline) {
+      if (isOnline) {
+        // Synchroniser toutes les données en arrière-plan
+        SyncService.syncAllData().catchError((e) {
+          print(' Erreur lors de la synchronisation complète au démarrage: $e');
+        });
+        
+        HomeWidgetService.updateWidgetWithFavoriteEvents().catchError((e) {
+          print(' Erreur mise à jour widget au démarrage: $e');
+        });
+      }
+    });
+  }
+
+  /// Vérifie l'état de connectivité au démarrage de l'application
+  /// Évite d'afficher un indicateur vert alors que l'app est en mode offline
+  Future<void> _checkInitialConnectivity() async {
+    try {
+      final isConnected = await ConnectivityService.checkConnectivity();
+      if (mounted) {
+        setState(() {
+          isOnline = isConnected;
+        });
+        print('📡 État de connectivité au démarrage: ${isConnected ? "ONLINE" : "OFFLINE"}');
+      }
+    } catch (e) {
+      print('Erreur lors de la vérification de connectivité: $e');
+      // En cas d'erreur, considérer comme offline pour être sûr
+      if (mounted) {
+        setState(() {
+          isOnline = false;
+        });
+      }
+    }
   }
 
   @override
@@ -50,10 +91,22 @@ class _MainPageState extends State<MainPage> {
       
       if (online) {
         _syncData();
-        // Synchronisation silencieuse sans notification
+        // Synchroniser toutes les données en arrière-plan quand la connexion est rétablie
+        _syncAllDataInBackground();
       }
-      // Pas de notification pour les changements de connectivité
+
     }
+  }
+
+  void _syncAllDataInBackground() {
+    // Vérifier la connectivité et synchroniser toutes les données si en ligne
+    ConnectivityService.checkConnectivity().then((isOnline) {
+      if (isOnline) {
+        SyncService.syncAllData().catchError((e) {
+          print(' Erreur lors de la synchronisation complète: $e');
+        });
+      }
+    });
   }
 
   Future<void> _loadUserInfo() async {
@@ -64,33 +117,41 @@ class _MainPageState extends State<MainPage> {
           userRole = 'Non connecté';
           loading = false;
         });
-        // Si le token est expiré, nettoyer
+
         if (token != null && !TokenStorage.isTokenValid(token)) {
           await TokenStorage.clearAll();
         }
         return;
       }
 
-      // Récupérer les données depuis le cache local ou l'API
+      // Récupérer l'ID directement depuis le token JWT pour être sûr
+      final userIdFromToken = await SyncService.getCurrentUserId();
+      print('MainScreen: userIdFromToken = $userIdFromToken');
+      
       final currentUser = await SyncService.getCurrentUser();
       if (currentUser != null) {
+        print('MainScreen: currentUser.userId = ${currentUser.userId}, currentUser.id = ${currentUser.id}');
         setState(() {
-          userRole = currentUser.role;
+          userRole = currentUser.role.toLowerCase(); // Normaliser en lowercase
           userName = '${currentUser.name} ${currentUser.surname}'.trim();
+          // Utiliser l'ID du token en priorité, sinon userId de currentUser
+          organizerId = userIdFromToken ?? currentUser.userId;
+          print('MainScreen: organizerId final = $organizerId');
           loading = false;
         });
       } else {
-        // Fallback vers le stockage sécurisé
+
         final storedUserData = await TokenStorage.readUserData();
         if (storedUserData != null) {
           setState(() {
-            userRole = storedUserData['role'] ?? 'user';
+            userRole = (storedUserData['role'] ?? 'user').toLowerCase();
             userName = '${storedUserData['name'] ?? ''} ${storedUserData['surname'] ?? ''}'.trim();
+            organizerId = storedUserData['id']; // Si présent dans le cache
             loading = false;
           });
         } else {
           setState(() {
-            userRole = 'Données non disponibles';
+            userRole = 'user';
             userName = 'Utilisateur';
             loading = false;
           });
@@ -118,8 +179,12 @@ class _MainPageState extends State<MainPage> {
     });
   }
 
+  /// Gère la déconnexion de l'utilisateur
+  /// Affiche un avertissement en mode offline car la reconnexion sera impossible
+  /// Nettoie complètement tous les tokens et données de session
   Future<void> _logout() async {
-    // Si on est en mode offline, afficher un popup d'avertissement
+
+    /// En mode offline, avertir l'utilisateur des conséquences de la déconnexion
     if (!isOnline) {
       final shouldLogout = await showDialog<bool>(
         context: context,
@@ -179,34 +244,30 @@ class _MainPageState extends State<MainPage> {
         },
       );
 
-      // Si l'utilisateur annule, ne pas déconnecter
       if (shouldLogout != true) {
         return;
       }
     }
 
     try {
-      // Vider complètement le stockage sécurisé (tous les tokens)
+
       print('🚪 Déconnexion en cours...');
       await TokenStorage.clearAll();
-      
-      // Vérifier que tous les tokens sont bien supprimés
+
       final tokenAfterLogout = await TokenStorage.read();
       final refreshTokenAfterLogout = await TokenStorage.readRefreshToken();
       
       if (tokenAfterLogout != null || refreshTokenAfterLogout != null) {
-        print('⚠️ ATTENTION: Des tokens sont encore présents après la déconnexion !');
-        // Forcer la suppression
+        print(' ATTENTION: Des tokens sont encore présents après la déconnexion !');
+
         await TokenStorage.clear();
         await TokenStorage.clearRefreshToken();
       } else {
-        print('✅ Tous les tokens ont été supprimés avec succès');
+        print(' Tous les tokens ont été supprimés avec succès');
       }
-      
-      // Vider le cache local
+
       await LocalDatabase.clearAllUsers();
-      
-      // Déconnexion silencieuse sans notification
+
       if (!mounted) return;
       Navigator.pushReplacementNamed(context, '/login');
     } catch (e) {
@@ -217,17 +278,69 @@ class _MainPageState extends State<MainPage> {
   }
 
   Widget _buildContent() {
+    if (loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    // Router selon le rôle de l'utilisateur
+    switch (userRole) {
+      case 'organisation':
+        return _buildOrgaContent();
+      // case 'admin':
+      //   return _buildAdminContent();
+      case 'user':
+      default:
+        return _buildUserContent();
+    }
+  }
+
+  /// Contenu USER (par défaut)
+  Widget _buildUserContent() {
+    // Créer MapContent avec une clé pour forcer sa création
+    final mapContent = MapContent(
+      key: const ValueKey('map_content'),
+      isActive: _currentIndex == 1,
+    );
+    
+    print(' MainScreen: Création de MapContent avec isActive=${_currentIndex == 1}');
+    debugPrint(' MainScreen: Création de MapContent avec isActive=${_currentIndex == 1}');
+    
+    return IndexedStack(
+      index: _currentIndex,
+      children: [
+        const EventsContent(),
+        mapContent,
+        HomeContent(
+          userName: userName,
+          userRole: userRole,
+          loading: loading,
+          isActive: _currentIndex == 2,
+        ),
+        const InfosContent(),
+        ProfileContent(
+          userName: userName,
+          userRole: userRole,
+          loading: loading,
+          isOnline: isOnline,
+          onLogout: _logout,
+        ),
+      ],
+    );
+  }
+
+  /// Contenu ORGANISATEUR
+  Widget _buildOrgaContent() {
     switch (_currentIndex) {
       case 0:
-        return const EventsContent();
+        return const EventEditor();
       case 1:
-        return const MapContent();
-        // return const TestNotificationScreen();
+        return const NotificationScreen();
       case 2:
         return HomeContent(
           userName: userName,
           userRole: userRole,
           loading: loading,
+          isActive: _currentIndex == 2,
         );
       case 3:
         return const InfosContent();
@@ -244,6 +357,7 @@ class _MainPageState extends State<MainPage> {
           userName: userName,
           userRole: userRole,
           loading: loading,
+          isActive: _currentIndex == 2,
         );
     }
   }
@@ -254,10 +368,13 @@ class _MainPageState extends State<MainPage> {
       backgroundColor: AppColors.getPrimaryBackground(context),
       extendBody: true,
       body: _buildContent(),
-      bottomNavigationBar: BottomNav(
-        currentIndex: _currentIndex,
-        onTap: _onBottomNavTap,
-      ),
+      bottomNavigationBar: loading
+          ? null
+          : BottomNav(
+              currentIndex: _currentIndex,
+              onTap: _onBottomNavTap,
+              userRole: userRole,
+            ),
     );
   }
 }

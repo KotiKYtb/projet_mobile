@@ -5,6 +5,7 @@ class UserModel {
   final String name;
   final String surname;
   final String role;
+  final String? profilePicture;
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? lastSync;
@@ -16,6 +17,7 @@ class UserModel {
     required this.name,
     required this.surname,
     required this.role,
+    this.profilePicture,
     required this.createdAt,
     required this.updatedAt,
     this.lastSync,
@@ -29,6 +31,7 @@ class UserModel {
       'name': name,
       'surname': surname,
       'role': role,
+      'profile_picture': profilePicture,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
       'last_sync': lastSync?.toIso8601String(),
@@ -43,6 +46,7 @@ class UserModel {
       name: map['name'],
       surname: map['surname'],
       role: map['role'],
+      profilePicture: map['profile_picture'] as String?,
       createdAt: DateTime.parse(map['created_at']),
       updatedAt: DateTime.parse(map['updated_at']),
       lastSync: map['last_sync'] != null ? DateTime.parse(map['last_sync']) : null,
@@ -56,6 +60,7 @@ class UserModel {
       name: apiData['name'] ?? '',
       surname: apiData['surname'] ?? '',
       role: apiData['role'] ?? 'user',
+      profilePicture: apiData['profile_picture'] as String?,
       createdAt: DateTime.parse(apiData['created_at']),
       updatedAt: DateTime.parse(apiData['updated_at']),
       lastSync: DateTime.now(),
@@ -69,6 +74,7 @@ class UserModel {
     String? name,
     String? surname,
     String? role,
+    String? profilePicture,
     DateTime? createdAt,
     DateTime? updatedAt,
     DateTime? lastSync,
@@ -80,6 +86,7 @@ class UserModel {
       name: name ?? this.name,
       surname: surname ?? this.surname,
       role: role ?? this.role,
+      profilePicture: profilePicture ?? this.profilePicture,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       lastSync: lastSync ?? this.lastSync,

@@ -61,7 +61,35 @@ android/local.properties
 ios/Pods/
 macos/Pods/
 
+# --- Linux/Windows build files ---
+# Fichiers générés par Flutter
+**/flutter/ephemeral/
+# Fichiers de build CMake
+**/CMakeFiles/
+**/CMakeCache.txt
+**/cmake_install.cmake
+**/Makefile
+**/*.cmake
+!**/CMakeLists.txt
+# Exécutables et fichiers de build
+linux/build/
+windows/build/
+windows/x64/
+windows/x86/
+windows/*.exe
+windows/*.dll
+windows/*.pdb
+# Fichiers Visual Studio
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.[Cc]ache
+
 # --- Node API ---
+# Ignorer node_modules partout (racine et sous-dossiers)
+node_modules/
+**/node_modules/
 API/node_modules/
 API/.env
 API/*.env
@@ -73,6 +101,9 @@ API/npm-debug.log*
 API/yarn-error.log*
 API/pnpm-debug.log*
 API/debug.log
+# Firebase service account (sensible - ne pas commiter)
+API/firebase-service-account.json
+API/*-service-account.json
 
 # --- Editors / OS ---
 .vscode/
@@ -81,3 +112,26 @@ Thumbs.db
 # --- Env (optional root-level) ---
 .env
 *.env
+
+# --- Additional build artifacts ---
+# Fichiers de cache et temporaires
+*.tmp
+*.temp
+*.bak
+*.backup
+*.swp
+*.swo
+*~
+# Fichiers de logs
+*.log
+logs/
+# Fichiers de lock (sauf package-lock.json qui peut être utile)
+yarn.lock
+pnpm-lock.yaml
+# Fichiers de configuration locaux
+local.properties
+*.local
+# Fichiers de base de données locales
+*.db-journal
+*.db-wal
+*.db-shm

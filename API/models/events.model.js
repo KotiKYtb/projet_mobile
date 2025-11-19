@@ -27,6 +27,14 @@ module.exports = function(sequelize, Sequelize) {
         type: Sequelize.STRING,
         allowNull: true
       },
+      latitude: {
+        type: Sequelize.DECIMAL(10, 8),
+        allowNull: true
+      },
+      longitude: {
+        type: Sequelize.DECIMAL(11, 8),
+        allowNull: true
+      },
       category: {
         type: Sequelize.STRING,
         allowNull: true
@@ -39,7 +47,6 @@ module.exports = function(sequelize, Sequelize) {
         type: Sequelize.INTEGER,
         allowNull: false
       }
-      // created_at et updated_at sont gérés automatiquement par Sequelize avec timestamps: true
     },
     {
       timestamps: true,

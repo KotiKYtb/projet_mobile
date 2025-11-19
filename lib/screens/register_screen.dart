@@ -52,7 +52,7 @@ class _RegisterPageState extends State<RegisterPage> {
       setState(() {
         isOnline = online;
       });
-      // Pas de notification pour les changements de connectivité
+
     }
   }
 
@@ -79,8 +79,8 @@ class _RegisterPageState extends State<RegisterPage> {
     setState(() { loading = true; error = null; });
     
     try {
-      // Tester d'abord la connexion à l'API
-      print('🔍 Test de connexion à l\'API...');
+
+      print(' Test de connexion à l\'API...');
       final canConnect = await ApiClient.testConnection();
       if (!canConnect) {
         setState(() { 
@@ -96,7 +96,7 @@ class _RegisterPageState extends State<RegisterPage> {
         return;
       }
       
-      print('✅ Connexion à l\'API réussie, tentative d\'inscription...');
+      print(' Connexion à l\'API réussie, tentative d\'inscription...');
       final http.Response resp = await ApiClient.signup(
         email: emailCtrl.text.trim(),
         password: passCtrl.text,
@@ -130,7 +130,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 '• Votre appareil peut accéder à cette adresse\n\n'
                 'Si vous utilisez un émulateur, essayez: http://10.0.2.2:8080';
       });
-      print('❌ Timeout lors de l\'inscription: $e');
+      print(' Timeout lors de l\'inscription: $e');
     } catch (e) {
       setState(() { 
         loading = false; 
@@ -138,7 +138,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 'URL utilisée: ${ApiClient.apiBaseUrl}\n\n'
                 'Assurez-vous que l\'API est démarrée.';
       });
-      print('❌ Erreur d\'inscription: $e');
+      print(' Erreur d\'inscription: $e');
     }
   }
 
@@ -150,7 +150,7 @@ class _RegisterPageState extends State<RegisterPage> {
       body: SafeArea(
         child: SingleChildScrollView(
           child: Container(
-            // Adjusts padding based on screen size.
+
             padding: MediaQuery.of(context).size.width > webScreenSize
                 ? EdgeInsets.symmetric(
                     horizontal: MediaQuery.of(context).size.width / 3)
@@ -162,7 +162,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   const SizedBox(height: 32),
-                  // Logo ou branding
+
                   SizedBox(
                     height: 100,
                     child: const Icon(
@@ -172,8 +172,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  
-                  // Champ Prénom avec style du template
+
                   Container(
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(4),
@@ -222,8 +221,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  
-                  // Champ Nom avec style du template
+
                   Container(
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(4),
@@ -272,8 +270,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  
-                  // Champ Email avec style du template
+
                   Container(
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(4),
@@ -323,8 +320,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  
-                  // Champ Password avec style du template
+
                   Container(
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(4),
@@ -389,8 +385,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  
-                  // Champ Confirmer Password avec style du template
+
                   Container(
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(4),
@@ -459,8 +454,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  
-                  // Message d'erreur
+
                   if (error != null)
                     Container(
                       width: double.infinity,
@@ -479,8 +473,7 @@ class _RegisterPageState extends State<RegisterPage> {
                         ),
                       ),
                     ),
-                  
-                  // Bouton d'inscription avec style du template
+
                   InkWell(
                     onTap: (loading || !isOnline) ? null : _submit,
                     child: Container(
@@ -542,8 +535,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  
-                  // Lien vers le login
+
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [

@@ -4,23 +4,44 @@ import '../utils/app_colors.dart';
 class BottomNav extends StatelessWidget {
   final int currentIndex;
   final Function(int) onTap;
+  final String userRole; // "user", "orga", "admin"
 
   const BottomNav({
     super.key,
     required this.currentIndex,
     required this.onTap,
+    required this.userRole,
   });
 
   @override
   Widget build(BuildContext context) {
     final Size size = MediaQuery.of(context).size;
 
-    return SizedBox(
-      height: 80,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          // Fond avec trou transparent
+    // === Définition des icônes selon le rôle ===
+    final List<IconData> icons = _getIconsForRole(userRole);
+
+    return Container(
+      decoration: BoxDecoration(
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.15),
+            blurRadius: 12,
+            spreadRadius: 0,
+            offset: const Offset(0, -4),
+          ),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 6,
+            spreadRadius: 0,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: SizedBox(
+        height: 80,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
           CustomPaint(
             size: Size(size.width, 80),
             painter: BNBCustomPainter(
@@ -28,7 +49,6 @@ class BottomNav extends StatelessWidget {
             ),
           ),
 
-          // Bouton central flottant
           Center(
             heightFactor: 0.6,
             child: Container(
@@ -65,7 +85,7 @@ class BottomNav extends StatelessWidget {
                     : AppColors.getMenuBackground(context),
                 shape: const CircleBorder(),
                 child: Icon(
-                  Icons.home,
+                  icons[2],
                   color: AppColors.getTextPrimary(context),
                 ),
                 elevation: 0,
@@ -73,7 +93,6 @@ class BottomNav extends StatelessWidget {
             ),
           ),
 
-          // Les icônes du menu
           Positioned.fill(
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -81,7 +100,7 @@ class BottomNav extends StatelessWidget {
                 IconButton(
                   onPressed: () => onTap(0),
                   icon: Icon(
-                    Icons.event,
+                    icons[0],
                     color: currentIndex == 0
                         ? AppColors.primaryButton
                         : AppColors.getIconDisabled(context),
@@ -90,18 +109,17 @@ class BottomNav extends StatelessWidget {
                 IconButton(
                   onPressed: () => onTap(1),
                   icon: Icon(
-                    Icons.map,
+                    icons[1],
                     color: currentIndex == 1
                         ? AppColors.primaryButton
                         : AppColors.getIconDisabled(context),
                   ),
                 ),
-                // Espace pour le FAB
                 SizedBox(width: size.width * 0.20),
                 IconButton(
                   onPressed: () => onTap(3),
                   icon: Icon(
-                    Icons.info_outline,
+                    icons[3],
                     color: currentIndex == 3
                         ? AppColors.primaryButton
                         : AppColors.getIconDisabled(context),
@@ -110,7 +128,7 @@ class BottomNav extends StatelessWidget {
                 IconButton(
                   onPressed: () => onTap(4),
                   icon: Icon(
-                    Icons.person,
+                    icons[4],
                     color: currentIndex == 4
                         ? AppColors.primaryButton
                         : AppColors.getIconDisabled(context),
@@ -121,7 +139,39 @@ class BottomNav extends StatelessWidget {
           ),
         ],
       ),
+      ),
     );
+  }
+
+  // Récupère les icônes selon le rôle
+  List<IconData> _getIconsForRole(String role) {
+    switch (role.toLowerCase()) {
+      case "organisation":
+        return [
+          Icons.event_available, 
+          Icons.notifications,   
+          Icons.home,            
+          Icons.analytics_outlined,
+          Icons.settings,         
+        ];
+      case "admin":
+        return [
+          Icons.dashboard,       
+          Icons.people,          
+          Icons.home,            
+          Icons.security,        
+          Icons.settings_applications, 
+        ];
+      case "user":
+      default:
+        return [
+          Icons.event,          
+          Icons.map,             
+          Icons.home,            
+          Icons.info_outline,        
+          Icons.person,          
+        ];
+    }
   }
 }
 
@@ -132,23 +182,19 @@ class BNBCustomPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Couleur principale de la barre
     final Paint paint = Paint()
       ..color = menuBackgroundColor
       ..style = PaintingStyle.fill;
 
-    // Fond complet de la barre
     final Path background = Path()
       ..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
 
-    // Paramètres du trou central
     final double leftStart = size.width * 0.35;
     final double leftControlX = size.width * 0.40;
     final double rightControlX = size.width * 0.60;
     final double rightEnd = size.width * 0.65;
     const double depth = 22.0;
 
-    // Forme du creux central
     final Path hole = Path()
       ..moveTo(leftStart, 0)
       ..quadraticBezierTo(leftControlX, 0, leftControlX, depth)
@@ -161,19 +207,13 @@ class BNBCustomPainter extends CustomPainter {
       ..lineTo(leftStart, 0)
       ..close();
 
-    // Combine fond + trou (evenOdd pour transparence réelle)
     final Path finalPath = Path()
       ..fillType = PathFillType.evenOdd
       ..addPath(background, Offset.zero)
       ..addPath(hole, Offset.zero);
 
-    // ❌ Supprime drawShadow (rendait le trou opaque)
-    // canvas.drawShadow(finalPath, Colors.black.withOpacity(0.3), 6.0, true);
-
-    // ✅ Dessine la barre avec un trou transparent
     canvas.drawPath(finalPath, paint);
 
-    // ✅ Ajoute une ombre douce autour du creux
     final Rect shadowRect = Rect.fromLTWH(
       size.width * 0.40,
       0,
@@ -192,7 +232,6 @@ class BNBCustomPainter extends CustomPainter {
       ).createShader(shadowRect)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
 
-    // Ombre douce et transparente sous le bord intérieur du creux
     canvas.drawArc(
       Rect.fromCircle(center: Offset(size.width / 2, depth - 5), radius: 22),
       0,

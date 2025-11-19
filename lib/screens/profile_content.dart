@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
 import '../utils/app_colors.dart';
 import '../services/theme_service.dart';
 import '../api_client.dart';
 import '../token_storage.dart';
+import '../services/connectivity_service.dart';
+import '../services/sync_service.dart';
+import '../services/local_database.dart';
+import '../models/user_model.dart';
 
 class ProfileSection {
   final String title;
@@ -42,6 +48,434 @@ class ProfileContent extends StatefulWidget {
 
 class _ProfileContentState extends State<ProfileContent> {
   List<ProfileSection>? _sections;
+  final _oldPasswordController = TextEditingController();
+  final _newPasswordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+  bool _isChangingPassword = false;
+  bool _obscureOldPassword = true;
+  bool _obscureNewPassword = true;
+  bool _obscureConfirmPassword = true;
+  String? _profilePictureUrl;
+  bool _isUploadingProfilePicture = false;
+  bool _isLoadingProfilePicture = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfilePicture();
+  }
+
+  @override
+  void dispose() {
+    _oldPasswordController.dispose();
+    _newPasswordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadProfilePicture() async {
+    // Éviter les appels multiples simultanés
+    if (_isLoadingProfilePicture) {
+      return;
+    }
+    
+    _isLoadingProfilePicture = true;
+    
+    try {
+      // Forcer une synchronisation depuis l'API pour récupérer l'image de profil à jour
+      print('Chargement de la photo de profil - Synchronisation depuis l\'API...');
+      await SyncService.forceSync();
+      
+      // Récupérer l'utilisateur après synchronisation
+      final currentUser = await SyncService.getCurrentUser();
+      if (currentUser != null) {
+        setState(() {
+          _profilePictureUrl = currentUser.profilePicture;
+        });
+        print('Photo de profil chargée: ${currentUser.profilePicture ?? "NULL"}');
+      } else {
+        print('Aucun utilisateur trouvé lors du chargement de la photo de profil');
+      }
+    } catch (e) {
+      print('Erreur lors du chargement de la photo de profil: $e');
+      // En cas d'erreur, essayer de charger depuis le cache local
+      try {
+        final currentUser = await SyncService.getCurrentUser();
+        if (currentUser != null) {
+          setState(() {
+            _profilePictureUrl = currentUser.profilePicture;
+          });
+          print('Photo de profil chargée depuis le cache: ${currentUser.profilePicture ?? "NULL"}');
+        }
+      } catch (e2) {
+        print('Erreur lors du chargement depuis le cache: $e2');
+      }
+    } finally {
+      _isLoadingProfilePicture = false;
+    }
+  }
+
+  Future<void> _pickAndUploadProfilePicture() async {
+    // Vérifier si l'utilisateur est organisateur
+    final userRole = widget.userRole.toLowerCase();
+    if (userRole != 'organisation' && userRole != 'organizer' && userRole != 'organisateur' && userRole != 'admin') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Seuls les organisateurs peuvent ajouter une photo de profil')),
+      );
+      return;
+    }
+
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+
+      if (image == null) return;
+
+      setState(() {
+        _isUploadingProfilePicture = true;
+      });
+
+      final token = await TokenStorage.read();
+      if (token == null) {
+        throw Exception('Non authentifié');
+      }
+
+      // Upload de l'image
+      final uploadResponse = await ApiClient.uploadProfileImage(
+        token: token,
+        imageFile: File(image.path),
+      );
+
+      if (uploadResponse.statusCode == 200) {
+        final uploadData = jsonDecode(uploadResponse.body) as Map<String, dynamic>;
+        final imageUrl = uploadData['imageUrl'] as String;
+
+        // Mettre à jour le profil avec l'URL de l'image
+        final updateResponse = await ApiClient.updateProfile(
+          token: token,
+          profilePicture: imageUrl,
+        );
+
+        if (updateResponse.statusCode == 200) {
+          final updateData = jsonDecode(updateResponse.body) as Map<String, dynamic>;
+          final updatedUserData = updateData['user'] as Map<String, dynamic>;
+          
+          // Mettre à jour le cache local
+          final updatedUser = UserModel.fromApi(updatedUserData);
+          await LocalDatabase.insertOrUpdateUser(updatedUser);
+
+          // Forcer une nouvelle synchronisation pour s'assurer que tout est à jour
+          await SyncService.forceSync();
+
+          setState(() {
+            _profilePictureUrl = imageUrl;
+            _isUploadingProfilePicture = false;
+          });
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Photo de profil mise à jour avec succès !')),
+            );
+          }
+        } else {
+          throw Exception('Erreur lors de la mise à jour du profil: ${updateResponse.body}');
+        }
+      } else {
+        throw Exception('Erreur lors de l\'upload: ${uploadResponse.body}');
+      }
+    } catch (e) {
+      print('Erreur lors de l\'upload de la photo de profil: $e');
+      print('Type d\'erreur: ${e.runtimeType}');
+      setState(() {
+        _isUploadingProfilePicture = false;
+      });
+      if (mounted) {
+        String errorMessage = 'Erreur lors de l\'upload';
+        if (e.toString().contains('Connection reset')) {
+          errorMessage = 'La connexion a été interrompue. Veuillez réessayer.';
+        } else if (e.toString().contains('Timeout')) {
+          errorMessage = 'Le téléchargement a pris trop de temps. Veuillez réessayer avec une image plus petite.';
+        } else {
+          errorMessage = 'Erreur: ${e.toString()}';
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(errorMessage)),
+        );
+      }
+    }
+  }
+
+  Future<void> _showChangePasswordDialog(BuildContext context) async {
+
+    _oldPasswordController.clear();
+    _newPasswordController.clear();
+    _confirmPasswordController.clear();
+    _obscureOldPassword = true;
+    _obscureNewPassword = true;
+    _obscureConfirmPassword = true;
+
+    await showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: AppColors.getCardBackground(context),
+          title: Text(
+            'Changer le mot de passe',
+            style: TextStyle(
+              color: AppColors.getTextPrimary(context),
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+
+                TextField(
+                  controller: _oldPasswordController,
+                  obscureText: _obscureOldPassword,
+                  decoration: InputDecoration(
+                    labelText: 'Ancien mot de passe',
+                    labelStyle: TextStyle(color: AppColors.getTextDisabled(context)),
+                    enabledBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: AppColors.primaryButton.withOpacity(0.3)),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: AppColors.primaryButton),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscureOldPassword ? Icons.visibility : Icons.visibility_off,
+                        color: AppColors.getTextDisabled(context),
+                      ),
+                      onPressed: () {
+                        setDialogState(() {
+                          _obscureOldPassword = !_obscureOldPassword;
+                        });
+                      },
+                    ),
+                  ),
+                  style: TextStyle(color: AppColors.getTextPrimary(context)),
+                ),
+                const SizedBox(height: 16),
+
+                TextField(
+                  controller: _newPasswordController,
+                  obscureText: _obscureNewPassword,
+                  decoration: InputDecoration(
+                    labelText: 'Nouveau mot de passe',
+                    labelStyle: TextStyle(color: AppColors.getTextDisabled(context)),
+                    enabledBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: AppColors.primaryButton.withOpacity(0.3)),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: AppColors.primaryButton),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscureNewPassword ? Icons.visibility : Icons.visibility_off,
+                        color: AppColors.getTextDisabled(context),
+                      ),
+                      onPressed: () {
+                        setDialogState(() {
+                          _obscureNewPassword = !_obscureNewPassword;
+                        });
+                      },
+                    ),
+                  ),
+                  style: TextStyle(color: AppColors.getTextPrimary(context)),
+                ),
+                const SizedBox(height: 16),
+
+                TextField(
+                  controller: _confirmPasswordController,
+                  obscureText: _obscureConfirmPassword,
+                  decoration: InputDecoration(
+                    labelText: 'Confirmer le nouveau mot de passe',
+                    labelStyle: TextStyle(color: AppColors.getTextDisabled(context)),
+                    enabledBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: AppColors.primaryButton.withOpacity(0.3)),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: AppColors.primaryButton),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscureConfirmPassword ? Icons.visibility : Icons.visibility_off,
+                        color: AppColors.getTextDisabled(context),
+                      ),
+                      onPressed: () {
+                        setDialogState(() {
+                          _obscureConfirmPassword = !_obscureConfirmPassword;
+                        });
+                      },
+                    ),
+                  ),
+                  style: TextStyle(color: AppColors.getTextPrimary(context)),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: _isChangingPassword
+                  ? null
+                  : () {
+                      Navigator.of(context).pop();
+                    },
+              child: Text(
+                'Annuler',
+                style: TextStyle(color: AppColors.getTextDisabled(context)),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: _isChangingPassword
+                  ? null
+                  : () async {
+                      await _handleChangePassword(context, setDialogState);
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryButton,
+                disabledBackgroundColor: AppColors.primaryButton.withOpacity(0.5),
+              ),
+              child: _isChangingPassword
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : const Text(
+                      'Changer',
+                      style: TextStyle(color: Colors.white),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleChangePassword(BuildContext context, StateSetter setDialogState) async {
+    final oldPassword = _oldPasswordController.text.trim();
+    final newPassword = _newPasswordController.text.trim();
+    final confirmPassword = _confirmPasswordController.text.trim();
+
+    if (oldPassword.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Veuillez entrer votre ancien mot de passe')),
+      );
+      return;
+    }
+
+    if (newPassword.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Veuillez entrer un nouveau mot de passe')),
+      );
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Le mot de passe doit contenir au moins 6 caractères')),
+      );
+      return;
+    }
+
+    if (newPassword != confirmPassword) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Les mots de passe ne correspondent pas')),
+      );
+      return;
+    }
+
+    if (oldPassword == newPassword) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Le nouveau mot de passe doit être différent de l\'ancien')),
+      );
+      return;
+    }
+
+    if (!widget.isOnline) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Impossible de changer le mot de passe en mode hors ligne'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    setDialogState(() {
+      _isChangingPassword = true;
+    });
+
+    try {
+      final token = await TokenStorage.read();
+      if (token == null) {
+        setDialogState(() {
+          _isChangingPassword = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Session expirée. Veuillez vous reconnecter')),
+        );
+        return;
+      }
+
+      final response = await ApiClient.changePassword(
+        token: token,
+        oldPassword: oldPassword,
+        newPassword: newPassword,
+      );
+
+      if (response.statusCode == 200) {
+        setDialogState(() {
+          _isChangingPassword = false;
+        });
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Mot de passe modifié avec succès'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        final errorData = jsonDecode(response.body);
+        setDialogState(() {
+          _isChangingPassword = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorData['message'] ?? 'Erreur lors du changement de mot de passe'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      setDialogState(() {
+        _isChangingPassword = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
 
   List<ProfileSection> _initSections(BuildContext context) {
     final sections = [
@@ -58,10 +492,10 @@ class _ProfileContentState extends State<ProfileContent> {
               'Recevoir des alertes push',
               style: TextStyle(color: AppColors.secondaryText),
             ),
-            value: true, // TODO: lier à une vraie préférence
+            value: true,
             activeColor: AppColors.primaryButton,
             onChanged: (bool value) {
-              // TODO: sauvegarder la préférence
+
             },
           ),
           Consumer<ThemeService>(
@@ -103,7 +537,7 @@ class _ProfileContentState extends State<ProfileContent> {
               color: AppColors.getIconDisabled(context),
             ),
             onTap: () {
-              // TODO: navigation vers changement mdp
+              _showChangePasswordDialog(context);
             },
           ),
           Divider(
@@ -132,8 +566,7 @@ class _ProfileContentState extends State<ProfileContent> {
         ],
       ),
     ];
-    
-    // Ajouter la section Administrateur uniquement si l'utilisateur est admin
+
     if (widget.userRole.toLowerCase() == 'admin') {
       sections.add(
         ProfileSection(
@@ -151,7 +584,7 @@ class _ProfileContentState extends State<ProfileContent> {
   
   Widget _buildAdminTabs(BuildContext context) {
     return DefaultTabController(
-      length: 1, // Pour l'instant, un seul onglet "Utilisateur"
+      length: 1,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -167,7 +600,7 @@ class _ProfileContentState extends State<ProfileContent> {
             ],
           ),
           SizedBox(
-            height: 400, // Hauteur fixe pour le contenu des onglets
+            height: 400,
             child: TabBarView(
               children: [
                 _buildUsersTab(context),
@@ -196,7 +629,6 @@ class _ProfileContentState extends State<ProfileContent> {
       );
     }
 
-    // Initialiser les sections dans build() où le contexte est disponible
     final sections = _initSections(context);
 
     return Container(
@@ -205,66 +637,111 @@ class _ProfileContentState extends State<ProfileContent> {
         padding: const EdgeInsets.only(bottom: 100),
         children: [
           const SizedBox(height: 48),
-          // En-tête du profil
+
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(24.0),
               child: Column(
                 children: [
-                        // Avatar avec indicateur de statut
-                    Stack(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: AppColors.primaryButton,
-                              width: 3,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppColors.primaryButton.withOpacity(0.4),
-                                blurRadius: 12,
-                                spreadRadius: 2,
-                                offset: const Offset(0, 3),
-                              ),
-                            ],
-                          ),
-                          child: CircleAvatar(
-                            radius: 50,
-                            backgroundColor: AppColors.primaryButton.withOpacity(0.2),
-                            child: Icon(
-                              Icons.person,
-                              size: 50,
-                              color: AppColors.primaryButton,
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: Container(
+
+                    GestureDetector(
+                      onTap: (widget.userRole.toLowerCase() == 'organisation' || widget.userRole.toLowerCase() == 'organizer' || widget.userRole.toLowerCase() == 'organisateur' || widget.userRole.toLowerCase() == 'admin') && !_isUploadingProfilePicture
+                          ? _pickAndUploadProfilePicture
+                          : null,
+                      child: Stack(
+                        children: [
+                          Container(
                             padding: const EdgeInsets.all(4),
                             decoration: BoxDecoration(
-                              color: widget.isOnline ? Colors.green : Colors.orange,
                               shape: BoxShape.circle,
                               border: Border.all(
-                                color: Colors.white,
-                                width: 2,
+                                color: AppColors.primaryButton,
+                                width: 3,
                               ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.primaryButton.withOpacity(0.4),
+                                  blurRadius: 12,
+                                  spreadRadius: 2,
+                                  offset: const Offset(0, 3),
+                                ),
+                              ],
                             ),
-                            child: Icon(
-                              widget.isOnline ? Icons.wifi : Icons.wifi_off,
-                              size: 14,
-                              color: Colors.white,
+                            child: CircleAvatar(
+                              radius: 50,
+                              backgroundColor: AppColors.primaryButton.withOpacity(0.2),
+                              backgroundImage: _profilePictureUrl != null
+                                  ? NetworkImage(_profilePictureUrl!)
+                                  : null,
+                              child: _profilePictureUrl == null
+                                  ? Icon(
+                                      Icons.person,
+                                      size: 50,
+                                      color: AppColors.primaryButton,
+                                    )
+                                  : null,
                             ),
                           ),
-                        ),
-                      ],
+                          if ((widget.userRole.toLowerCase() == 'organisation' || widget.userRole.toLowerCase() == 'organizer' || widget.userRole.toLowerCase() == 'organisateur' || widget.userRole.toLowerCase() == 'admin') && !_isUploadingProfilePicture)
+                            Positioned(
+                              bottom: 0,
+                              left: 0,
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primaryButton,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 2,
+                                  ),
+                                ),
+                                child: const Icon(
+                                  Icons.camera_alt,
+                                  size: 16,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: widget.isOnline ? Colors.green : Colors.orange,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 2,
+                                ),
+                              ),
+                              child: Icon(
+                                widget.isOnline ? Icons.wifi : Icons.wifi_off,
+                                size: 14,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                          if (_isUploadingProfilePicture)
+                            Positioned.fill(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withOpacity(0.5),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Center(
+                                  child: CircularProgressIndicator(
+                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 16),
-                    // Nom d'utilisateur
+
                     Text(
                       widget.userName,
                       style: TextStyle(
@@ -274,7 +751,7 @@ class _ProfileContentState extends State<ProfileContent> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    // Badge de rôle
+
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 12,
@@ -304,7 +781,7 @@ class _ProfileContentState extends State<ProfileContent> {
                 ),
               ),
             ),
-          // Sections expansibles
+
           ...List.generate(sections.length, (index) {
             final section = sections[index];
             return Card(
@@ -380,7 +857,6 @@ class _ProfileContentState extends State<ProfileContent> {
   }
 }
 
-// Modèle pour représenter un utilisateur dans la liste admin
 class _UserListItem {
   final int userId;
   final String email;
@@ -413,7 +889,6 @@ class _UserListItem {
   }
 }
 
-// Widget pour afficher la liste des utilisateurs
 class _UsersListWidget extends StatefulWidget {
   @override
   State<_UsersListWidget> createState() => _UsersListWidgetState();
@@ -436,7 +911,7 @@ class _UsersListWidgetState extends State<_UsersListWidget> {
     try {
       final token = await TokenStorage.read();
       if (token != null) {
-        // Décoder le token JWT pour obtenir l'ID de l'utilisateur
+
         final parts = token.split('.');
         if (parts.length == 3) {
           final payload = parts[1];
@@ -525,7 +1000,7 @@ class _UsersListWidgetState extends State<_UsersListWidget> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Rôle mis à jour avec succès')),
         );
-        _loadUsers(); // Recharger la liste
+        _loadUsers();
       } else {
         final errorData = jsonDecode(response.body);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -604,7 +1079,7 @@ class _UsersListWidgetState extends State<_UsersListWidget> {
   }
 
   String _formatDate(DateTime date) {
-    // Ajouter 1 heure pour UTC+1
+
     final dateUTC1 = date.add(const Duration(hours: 1));
     return '${dateUTC1.day}/${dateUTC1.month}/${dateUTC1.year} ${dateUTC1.hour.toString().padLeft(2, '0')}:${dateUTC1.minute.toString().padLeft(2, '0')}';
   }
@@ -756,7 +1231,7 @@ class _UsersListWidgetState extends State<_UsersListWidget> {
                                           child: IconButton(
                                             icon: const Icon(Icons.edit),
                                             color: AppColors.getTextDisabled(context),
-                                            onPressed: null, // Désactivé
+                                            onPressed: null,
                                           ),
                                         )
                                       : IconButton(

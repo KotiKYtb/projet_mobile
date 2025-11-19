@@ -3,11 +3,24 @@ const config = require("../config/auth.config.js");
 const db = require("../models");
 const User = db.user;
 
+// Middleware de vérification du token JWT
+// Accepte le token soit dans le header x-access-token soit dans Authorization: Bearer <token>
 verifyToken = (req, res, next) => {
   let token = req.headers["x-access-token"];
+  
+  // Support du format Bearer token dans le header Authorization
+  if (!token) {
+    const authHeader = req.headers["authorization"];
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      token = authHeader.substring(7);
+    }
+  }
+  
   if (!token) {
     return res.status(403).send({ message: "No token provided!" });
   }
+  
+  // Vérifie et décode le token JWT, puis ajoute l'ID utilisateur à la requête
   jwt.verify(token, config.secret, (err, decoded) => {
     if (err) {
       return res.status(401).send({ message: "Unauthorized!" });
@@ -41,11 +54,30 @@ isModeratorOrAdmin = (req, res, next) => {
   });
 };
 
+isAdminOrOrganisation = (req, res, next) => {
+  User.findByPk(req.userId).then(user => {
+    if (!user) return res.status(401).send({ message: "Unauthorized!" });
+    if (user.role === "admin" || user.role === "organisation") return next();
+    res.status(403).send({ message: "Le role Admin ou Organisation est necessaire!" });
+  });
+};
+
+isOrganisation = (req, res, next) => {
+  User.findByPk(req.userId).then(user => {
+    if (!user) return res.status(401).send({ message: "Unauthorized!" });
+    const role = user.role.toLowerCase();
+    if (role === "organisation" || role === "organizer" || role === "organisateur" || role === "admin") return next();
+    res.status(403).send({ message: "Le role Organisation est necessaire!" });
+  });
+};
+
 const authJwt = {
   verifyToken: verifyToken,
   isAdmin: isAdmin,
   isModerator: isModerator,
-  isModeratorOrAdmin: isModeratorOrAdmin
+  isModeratorOrAdmin: isModeratorOrAdmin,
+  isAdminOrOrganisation: isAdminOrOrganisation,
+  isOrganisation: isOrganisation
 };
 
 module.exports = authJwt;

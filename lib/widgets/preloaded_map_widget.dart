@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_osm_plugin/flutter_osm_plugin.dart';
 import '../services/map_service.dart';
 
-/// Widget de carte invisible qui reste chargé en arrière-plan
-/// pour éviter les temps de chargement à chaque navigation
+
 class PreloadedMapWidget extends StatefulWidget {
   const PreloadedMapWidget({super.key});
 
@@ -33,7 +32,6 @@ class _PreloadedMapWidgetState extends State<PreloadedMapWidget> with AutomaticK
       return const SizedBox.shrink();
     }
 
-    // Widget invisible (opacity: 0) mais qui reste chargé
     return Opacity(
       opacity: 0,
       child: IgnorePointer(

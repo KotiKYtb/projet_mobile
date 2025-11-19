@@ -2,8 +2,8 @@ const db = require("../models");
 const ROLES = db.ROLES;
 const User = db.user;
 
+// Vérifie que l'email n'est pas déjà utilisé lors de l'inscription
 checkDuplicateUsernameOrEmail = (req, res, next) => {
-  // Email only (username n'est plus utilisé)
   User.findOne({
     where: {
       email: req.body.email
@@ -19,6 +19,7 @@ checkDuplicateUsernameOrEmail = (req, res, next) => {
   });
 };
 
+// Valide que les rôles demandés lors de l'inscription existent dans la liste autorisée
 checkRolesExisted = (req, res, next) => {
   if (req.body.roles) {
     for (let i = 0; i < req.body.roles.length; i++) {

@@ -5,13 +5,18 @@ import 'event_details_screen.dart';
 import '../utils/app_colors.dart';
 import '../api_client.dart';
 import '../services/connectivity_service.dart';
+import '../services/sync_service.dart';
+import '../services/local_database.dart';
 import '../token_storage.dart';
+import '../widgets/home_widget_service.dart';
 
 class EventItem {
 	final int eventId;
 	final String title;
 	final String? description;
 	final String? location;
+	final double? latitude;
+	final double? longitude;
 	final DateTime startAt;
 	final DateTime? endAt;
 	final String? category;
@@ -23,6 +28,8 @@ class EventItem {
 		required this.title,
 		this.description,
 		this.location,
+		this.latitude,
+		this.longitude,
 		required this.startAt,
 		this.endAt,
 		this.category,
@@ -30,13 +37,17 @@ class EventItem {
 		this.createdBy,
 	});
 
-	// Factory pour créer depuis les données de l'API
+	/// Crée un EventItem à partir des données JSON de l'API
+	/// Gère la conversion des types pour latitude/longitude qui peuvent être num ou String
 	factory EventItem.fromJson(Map<String, dynamic> json) {
 		return EventItem(
 			eventId: json['event_id'] as int,
 			title: json['title'] as String,
 			description: json['description'] as String?,
 			location: json['location'] as String?,
+			/// Conversion flexible: accepte num (int/double) ou String pour les coordonnées
+			latitude: json['latitude'] != null ? (json['latitude'] is num ? json['latitude'].toDouble() : double.tryParse(json['latitude'].toString())) : null,
+			longitude: json['longitude'] != null ? (json['longitude'] is num ? json['longitude'].toDouble() : double.tryParse(json['longitude'].toString())) : null,
 			startAt: DateTime.parse(json['startAt'] as String),
 			endAt: json['endAt'] != null ? DateTime.parse(json['endAt'] as String) : null,
 			category: json['category'] as String?,
@@ -45,7 +56,6 @@ class EventItem {
 		);
 	}
 
-	// Getters pour compatibilité avec l'ancien code
 	String get id => eventId.toString();
 	String get place => location ?? 'Lieu non spécifié';
 	DateTime get date => startAt;
@@ -64,7 +74,7 @@ class _EventsContentState extends State<EventsContent> {
 	List<EventItem> _filteredEvents = [];
 	bool _isLoading = true;
 	String? _error;
-	Set<int> _favoriteEventIds = {}; // IDs des événements favoris
+	Set<int> _favoriteEventIds = {};
 
 	@override
 	void initState() {
@@ -77,7 +87,7 @@ class _EventsContentState extends State<EventsContent> {
 	@override
 	void didChangeDependencies() {
 		super.didChangeDependencies();
-		// Recharger les favoris quand on revient sur la page
+
 		_loadFavorites();
 	}
 
@@ -109,44 +119,75 @@ class _EventsContentState extends State<EventsContent> {
 		});
 
 		try {
+			// Vérifier la connectivité réseau
 			final isOnline = await ConnectivityService.checkConnectivity();
+			print(' État de connectivité: ${isOnline ? "EN LIGNE" : "HORS LIGNE"}');
 			
 			if (isOnline) {
-				// Mode online - charger depuis l'API
-				await _loadEventsFromAPI();
+				// En ligne -> essayer de charger depuis l'API
+				print(' Tentative de chargement depuis l\'API...');
+				try {
+					await _loadEventsFromAPI();
+				} catch (e) {
+					// Si l'API échoue, charger depuis le cache
+					print(' Erreur API détectée: $e');
+					print(' Basculement vers le cache local...');
+					await _loadEventsFromCache();
+				}
 			} else {
-				// Mode offline - charger depuis le cache local
+				// Hors ligne -> charger depuis le cache local
+				print(' Hors ligne détecté, chargement depuis le cache local');
 				await _loadEventsFromCache();
 			}
 		} catch (e) {
-			print('❌ Erreur lors du chargement des événements: $e');
-			setState(() {
-				_error = 'Erreur lors du chargement des événements';
-				_isLoading = false;
-			});
-			// Essayer de charger depuis le cache en cas d'erreur
+			print(' Erreur lors du chargement des événements: $e');
+			print(' Stack trace: ${StackTrace.current}');
+			// En cas d'erreur, essayer de charger depuis le cache
 			await _loadEventsFromCache();
 		}
 	}
 
 	Future<void> _loadEventsFromAPI() async {
-		try {
-			print('🔍 Chargement des événements depuis l\'API...');
-			final response = await ApiClient.getEvents(page: 1, pageSize: 100);
+		print(' Chargement des événements depuis l\'API...');
+		final response = await ApiClient.getEvents(page: 1, pageSize: 100);
+		
+		if (response.statusCode == 200) {
+			final data = jsonDecode(response.body) as Map<String, dynamic>;
+			final eventsData = data['data'] as List<dynamic>;
 			
-			if (response.statusCode == 200) {
-				final data = jsonDecode(response.body) as Map<String, dynamic>;
-				final eventsData = data['data'] as List<dynamic>;
-				
-				final events = eventsData
+			// Sauvegarder dans le cache local avant de convertir en EventItem
+			await _saveEventsToCache(eventsData);
+
+			final events = eventsData
+				.map((json) => EventItem.fromJson(json as Map<String, dynamic>))
+				.toList();
+
+			events.sort((a, b) => a.startAt.compareTo(b.startAt));
+
+			setState(() {
+				_allEvents = events;
+				_filteredEvents = List.from(_allEvents);
+				_isLoading = false;
+				_error = null;
+			});
+
+			print(' ${events.length} événements chargés depuis l\'API');
+		} else {
+			throw Exception('Erreur ${response.statusCode}: ${response.body}');
+		}
+	}
+
+	Future<void> _loadEventsFromCache() async {
+		try {
+			print(' Chargement des événements depuis le cache local...');
+			final eventsJson = await LocalDatabase.getAllEvents();
+			
+			if (eventsJson.isNotEmpty) {
+				final events = eventsJson
 					.map((json) => EventItem.fromJson(json as Map<String, dynamic>))
 					.toList();
 
-				// Trier par date
 				events.sort((a, b) => a.startAt.compareTo(b.startAt));
-
-				// Sauvegarder dans le cache local
-				await _saveEventsToCache(events);
 
 				setState(() {
 					_allEvents = events;
@@ -155,58 +196,62 @@ class _EventsContentState extends State<EventsContent> {
 					_error = null;
 				});
 
-				print('✅ ${events.length} événements chargés depuis l\'API');
+				print(' ${events.length} événements chargés depuis le cache local');
 			} else {
-				throw Exception('Erreur ${response.statusCode}: ${response.body}');
+				setState(() {
+					_allEvents = [];
+					_filteredEvents = [];
+					_isLoading = false;
+					_error = 'Mode hors ligne - Aucun événement en cache';
+				});
+				print(' Aucun événement trouvé dans le cache local');
 			}
 		} catch (e) {
-			print('❌ Erreur API: $e');
-			throw e;
+			print(' Erreur lors du chargement depuis le cache: $e');
+			setState(() {
+				_allEvents = [];
+				_filteredEvents = [];
+				_isLoading = false;
+				_error = 'Erreur lors du chargement du cache local';
+			});
 		}
 	}
 
-	Future<void> _loadEventsFromCache() async {
-		// TODO: Implémenter le cache local si nécessaire
-		// Pour l'instant, on affiche juste un message
-		setState(() {
-			_allEvents = [];
-			_filteredEvents = [];
-			_isLoading = false;
-			if (_error == null) {
-				_error = 'Mode hors ligne - Aucun événement en cache';
-			}
-		});
-	}
-
-	Future<void> _saveEventsToCache(List<EventItem> events) async {
-		// TODO: Implémenter la sauvegarde dans le cache local
-		// Pour l'instant, on ne fait rien
+	Future<void> _saveEventsToCache(List<dynamic> eventsJson) async {
+		try {
+			// Convertir en List<Map<String, dynamic>> si nécessaire
+			final eventsList = eventsJson
+				.map((e) => e is Map<String, dynamic> ? e : e as Map<String, dynamic>)
+				.toList();
+			
+			await LocalDatabase.saveEvents(eventsList);
+			print(' Événements sauvegardés dans le cache local');
+		} catch (e) {
+			print(' Erreur lors de la sauvegarde dans le cache: $e');
+			// Ne pas bloquer si la sauvegarde échoue
+		}
 	}
 
 	Future<void> _loadFavorites() async {
 		try {
-			final token = await TokenStorage.read();
-			if (token == null) {
+			// Utiliser SyncService qui gère automatiquement le cache offline
+			final userId = await SyncService.getCurrentUserId();
+			if (userId == null) {
 				setState(() {
 					_favoriteEventIds = {};
 				});
 				return;
 			}
 
-			final response = await ApiClient.getFavorites(token: token);
-			if (response.statusCode == 200) {
-				final data = jsonDecode(response.body) as Map<String, dynamic>;
-				final favoritesData = data['favorites'] as List<dynamic>? ?? [];
-				final favoriteIds = favoritesData
-					.map((f) => (f as Map<String, dynamic>)['event_id'] as int)
-					.toSet();
-				
-				setState(() {
-					_favoriteEventIds = favoriteIds;
-				});
-			}
+			final favoriteIds = await SyncService.getFavoriteEventIds(userId);
+			setState(() {
+				_favoriteEventIds = favoriteIds.toSet();
+			});
 		} catch (e) {
 			print('Erreur lors du chargement des favoris: $e');
+			setState(() {
+				_favoriteEventIds = {};
+			});
 		}
 	}
 
@@ -229,25 +274,36 @@ class _EventsContentState extends State<EventsContent> {
 			http.Response response;
 
 			if (isFavorite) {
-				// Retirer des favoris
+
 				response = await ApiClient.removeFavorite(
 					token: token,
 					eventId: event.eventId,
 				);
 			} else {
-				// Ajouter aux favoris
+
 				response = await ApiClient.addFavorite(
 					token: token,
 					eventId: event.eventId,
 				);
 			}
 
-			if (response.statusCode == 200 || response.statusCode == 201) {
-				// Recharger les favoris depuis l'API pour être sûr d'avoir l'état à jour
-				await _loadFavorites();
-			} else {
-				throw Exception('Erreur ${response.statusCode}: ${response.body}');
+		if (response.statusCode == 200 || response.statusCode == 201) {
+			// Mettre à jour le cache local
+			final userId = await SyncService.getCurrentUserId();
+			if (userId != null) {
+				if (isFavorite) {
+					await LocalDatabase.deleteFavorite(userId: userId, eventId: event.eventId);
+				} else {
+					await LocalDatabase.insertOrUpdateFavorite(userId: userId, eventId: event.eventId);
+				}
 			}
+
+			await _loadFavorites();
+
+			HomeWidgetService.updateWidgetWithFavoriteEvents();
+		} else {
+			throw Exception('Erreur ${response.statusCode}: ${response.body}');
+		}
 		} catch (e) {
 			print('Erreur lors de la sauvegarde du favori: $e');
 			if (mounted) {
@@ -268,7 +324,7 @@ class _EventsContentState extends State<EventsContent> {
 
 	String _formatDate(DateTime d) {
 		final local = d.toLocal();
-		// Simple formatted date: DD/MM HH:MM
+
 		final two = (int n) => n.toString().padLeft(2, '0');
 		return '${two(local.day)}/${two(local.month)} ${two(local.hour)}:${two(local.minute)}';
 	}
@@ -282,7 +338,7 @@ class _EventsContentState extends State<EventsContent> {
 				child: Column(
 					children: [
 						const SizedBox(height: 48),
-						// Search field
+
 						Container(
 							decoration: BoxDecoration(
 								borderRadius: BorderRadius.circular(12),
@@ -336,7 +392,6 @@ class _EventsContentState extends State<EventsContent> {
 						),
 						const SizedBox(height: 24),
 
-						// Header + count
 						Row(
 							mainAxisAlignment: MainAxisAlignment.spaceBetween,
 							children: [
@@ -358,7 +413,6 @@ class _EventsContentState extends State<EventsContent> {
 						),
 						const SizedBox(height: 8),
 
-						// List
 						Expanded(
 							child: RefreshIndicator(
 								onRefresh: _refresh,
@@ -459,7 +513,7 @@ class _EventsContentState extends State<EventsContent> {
 																	builder: (context) => EventDetailsScreen(event: ev),
 																),
 															);
-															// Recharger les favoris après retour
+
 															_loadFavorites();
 														},
 														child: Container(
@@ -471,7 +525,7 @@ class _EventsContentState extends State<EventsContent> {
 															child: Row(
 															crossAxisAlignment: CrossAxisAlignment.start,
 															children: [
-																// Left: date badge
+
 																Container(
 																	padding: const EdgeInsets.all(8),
 																	decoration: BoxDecoration(
@@ -499,7 +553,7 @@ class _EventsContentState extends State<EventsContent> {
 																	),
 																),
 																const SizedBox(width: 12),
-																// Middle: details
+
 																Expanded(
 																	child: Column(
 																		crossAxisAlignment: CrossAxisAlignment.start,
@@ -522,7 +576,7 @@ class _EventsContentState extends State<EventsContent> {
 																		],
 																	),
 																),
-																// Right: time & action
+
 																Column(
 																	crossAxisAlignment: CrossAxisAlignment.end,
 																	children: [
